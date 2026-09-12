@@ -5,14 +5,14 @@ import plotly.express as px
 import requests
 from bs4 import BeautifulSoup
 
-# 1. 페이지 설정 및 레이아웃
+# 1. 페이지 설정
 st.set_page_config(
     page_title="2026 대구 FC 승격 시뮬레이터",
     page_icon="⚽",
     layout="wide"
 )
 
-# 2. 커스텀 CSS (대구 FC 하늘색 테마)
+# 2. CSS 스타일링
 st.markdown("""
     <style>
     .main { background-color: #F4F7FA; }
@@ -30,7 +30,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 실시간 K리그2 순위 크롤링 (1시간 캐싱)
+# 3. 실시간 순위 데이터 로드
 @st.cache_data(ttl=3600)
 def fetch_realtime_standings():
     url = "https://sports.news.naver.com/kfootball/record/index?category=kleague2"
@@ -71,7 +71,7 @@ def fetch_realtime_standings():
         {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34},
         {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43}
     ]
-    return pd.DataFrame(default_teams), "🟡 기준 데이터 로드됨 (네이버 접속 불가시 백업용)"
+    return pd.DataFrame(default_teams), "🟡 기준 데이터 로드됨"
 
 df_standings, status_msg = fetch_realtime_standings()
 
@@ -90,22 +90,22 @@ daegu_schedule = [
     {"R": 34, "상대팀": "충남 아산 FC", "장소": "원정"}
 ]
 
-# 4. 연산 최적화 시뮬레이션 로직
-def run_fast_simulation(df, schedule, user_predictions, total_games=32, n_sims=3000):
+# 주요 경쟁 팀 목록
+rival_teams = ["수원 삼성 블루윙즈", "서울 이랜드 FC", "수원 FC", "화성 FC"]
+
+# 4. 연산 최적화 시뮬레이션 로직 (경쟁팀 가중치 포함)
+def run_fast_simulation(df, schedule, user_predictions, rival_preds, total_games=32, n_sims=3000):
     teams = df['팀'].values
     n_teams = len(teams)
     team_idx = {t: i for i, t in enumerate(teams)}
     daegu_i = team_idx.get("대구 FC", 1)
     
     base_pts = df['승점'].values.astype(np.float64)
-    base_gf = df['득점'].values.astype(np.float64)
-    base_ga = df['실점'].values.astype(np.float64)
     games_played = df['경기수'].values.copy()
     
-    # 3000번 시뮬레이션용 배열 미리 확보
     pts_sim = np.tile(base_pts, (n_sims, 1))
     
-    # 대구 FC 잔여 경기 고정/확률 계산
+    # 대구 FC 경기 결과 반영
     for idx, match in enumerate(schedule):
         opp_i = team_idx.get(match["상대팀"])
         choice = user_predictions[idx]
@@ -128,17 +128,31 @@ def run_fast_simulation(df, schedule, user_predictions, total_games=32, n_sims=3
             pts_sim[:, opp_i] += opp_res
             games_played[opp_i] += 1
 
-    # 타 구단 잔여 경기 일괄 벡터 연산
+    # 경쟁 구단 승점 예측치 반영 및 잔여 경기 시뮬레이션
     for i in range(n_teams):
-        if i == daegu_i: continue
+        t_name = teams[i]
+        if i == daegu_i:
+            continue
+            
         rem = total_games - games_played[i]
         if rem > 0:
-            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, rem), p=[0.35, 0.28, 0.37]).sum(axis=1)
+            # 사용자가 설정한 경쟁팀 경기 성향 보정
+            if t_name in rival_preds:
+                trend = rival_preds[t_name]
+                if trend == "상승세 (승률 60%)":
+                    p = [0.60, 0.25, 0.15]
+                elif trend == "부진 (승률 20%)":
+                    p = [0.20, 0.30, 0.50]
+                else:
+                    p = [0.35, 0.28, 0.37]
+            else:
+                p = [0.35, 0.28, 0.37]
+                
+            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, rem), p=p).sum(axis=1)
             pts_sim[:, i] += sim_adds
 
-    # 최종 순위 일괄 구하기
+    # 최종 순위 일괄 계산
     daegu_pts = pts_sim[:, daegu_i]
-    # 타 팀 승점 비교
     ranks = (pts_sim > daegu_pts[:, None]).sum(axis=1) + 1
     
     direct_cnt = np.sum(ranks <= 2)
@@ -150,22 +164,27 @@ def run_fast_simulation(df, schedule, user_predictions, total_games=32, n_sims=3
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader("📋 2026 K리그2 순위표")
-    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=280)
+    st.subheader("📋 K리그2 순위표")
+    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=220)
     
-    st.subheader("🗓️ 대구 FC 잔여 경기 승부 직접 입력")
-    st.caption("결과를 변경하면 오른쪽 그래프가 즉시 업데이트됩니다.")
+    st.subheader("🗓️ 대구 FC 경기 입력")
     user_preds = []
     for idx, match in enumerate(daegu_schedule):
         label = f"R{match['R']} vs {match['상대팀']} ({match['장소']})"
         choice = st.selectbox(label, options=["자동 계산 (확률적 반영)", "승리 ⭕", "무승부 🔺", "패배 ❌"], key=f"match_{idx}")
         user_preds.append(choice)
 
+    st.subheader("🔥 경쟁 구단 잔여 경기 흐름 설정")
+    rival_preds = {}
+    for team in rival_teams:
+        trend = st.selectbox(f"{team}", options=["보통 (평균 승률)", "상승세 (승률 60%)", "부진 (승률 20%)"], key=f"rival_{team}")
+        rival_preds[team] = trend
+
 with col2:
     st.subheader("📊 시뮬레이션 결과 및 확률")
     sim_count = st.slider("시뮬레이션 반복 횟수 설정", 1000, 10000, 3000, step=1000)
     
-    direct_p, po_p, ranks = run_fast_simulation(df_standings, daegu_schedule, user_preds, total_games=32, n_sims=sim_count)
+    direct_p, po_p, ranks = run_fast_simulation(df_standings, daegu_schedule, user_preds, rival_preds, total_games=32, n_sims=sim_count)
     
     m1, m2, m3 = st.columns(3)
     m1.metric("자동 승격 (1~2위)", f"{direct_p:.1f}%")
