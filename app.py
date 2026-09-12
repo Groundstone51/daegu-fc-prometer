@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 실시간 K리그2 순위 크롤링 함수 (1시간 간격 자동 갱신)
+# 3. 실시간 K리그2 순위 크롤링 함수
 @st.cache_data(ttl=3600)
 def fetch_realtime_standings():
     url = "https://sports.news.naver.com/kfootball/record/index?category=kleague2"
@@ -44,7 +44,6 @@ def fetch_realtime_standings():
         response = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 네이버 스포츠 순위 테이블 파싱 (가상 구조 대응)
         rows = soup.select("#regularGroup_table tr")
         teams_data = []
         
@@ -61,7 +60,6 @@ def fetch_realtime_standings():
     except Exception:
         pass
         
-    # 크롤링 실패 시 기본 데이터 반환 (Fallback)
     default_teams = [
         {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 43, "실점": 24},
         {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 42, "실점": 28},
@@ -83,16 +81,15 @@ def fetch_realtime_standings():
     ]
     return pd.DataFrame(default_teams), "🟡 기준 데이터 로드됨 (네이버 접속 불가시 백업용)"
 
-# 4. 데이터 로드
+# 4. 데이터 로드 및 상단 헤더
 df_standings, status_msg = fetch_realtime_standings()
 
-# 메인 상단 헤더
 st.title("⚽ 2026 대구 FC 승격 가능성 시뮬레이터")
 st.caption(f"K리그2 17개 구단 체제 반영 | {status_msg}")
 
 st.divider()
 
-# 대구 FC 잔여 일정
+# 대구 FC 기본 잔여 일정
 daegu_schedule = [
     {"R": 27, "상대팀": "서울 이랜드 FC", "장소": "원정"},
     {"R": 28, "상대팀": "수원 삼성 블루윙즈", "장소": "홈"},
@@ -104,19 +101,30 @@ daegu_schedule = [
     {"R": 34, "상대팀": "충남 아산 FC", "장소": "원정"}
 ]
 
-# 5. 시뮬레이션 로직
-def run_simulation(df, schedule, total_games=32, n_sims=3000):
+# 5. 시뮬레이션 계산 로직 (사용자 직접 입력 승부 반영)
+def run_simulation(df, schedule, user_predictions, total_games=32, n_sims=3000):
     direct_cnt, po_cnt, final_ranks = 0, 0, []
     df['득실차'] = df['득점'] - df['실점']
     
     for _ in range(n_sims):
         sim_teams = df.set_index("팀").to_dict('index')
         
-        for match in schedule:
+        for idx, match in enumerate(schedule):
             opp = match["상대팀"]
             is_home = (match["장소"] == "홈")
-            base_win_p = 0.42 if is_home else 0.32
-            res = np.random.choice([3, 1, 0], p=[base_win_p, 0.28, 1.0 - base_win_p - 0.28])
+            user_choice = user_predictions[idx]
+            
+            # 사용자 지정 결과가 있을 경우 고정 승점 반영
+            if user_choice == "승리 ⭕":
+                res = 3
+            elif user_choice == "무승부 🔺":
+                res = 1
+            elif user_choice == "패배 ❌":
+                res = 0
+            else:
+                # 자동 시뮬레이션
+                base_win_p = 0.42 if is_home else 0.32
+                res = np.random.choice([3, 1, 0], p=[base_win_p, 0.28, 1.0 - base_win_p - 0.28])
             
             if "대구 FC" in sim_teams:
                 sim_teams["대구 FC"]["승점"] += res
@@ -144,7 +152,7 @@ def run_simulation(df, schedule, total_games=32, n_sims=3000):
             
     return (direct_cnt / n_sims) * 100, (po_cnt / n_sims) * 100, final_ranks
 
-# 6. 화면 분할 출력
+# 6. 화면 출력 및 잔여 경기 직접 대입 UI 구현
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -153,17 +161,27 @@ with col1:
         df_standings[["팀", "승점", "경기수", "득점", "실점"]],
         use_container_width=True,
         hide_index=True,
-        height=380
+        height=320
     )
     
-    st.subheader("🗓️ 대구 FC 잔여 대진표")
-    st.dataframe(pd.DataFrame(daegu_schedule), use_container_width=True, hide_index=True, height=260)
+    st.subheader("🗓️ 대구 FC 잔여 경기 승부 직접 입력")
+    st.caption("각 경기의 예상 결과를 직접 선택해 보세요.")
+    
+    user_preds = []
+    for idx, match in enumerate(daegu_schedule):
+        label = f"R{match['R']} vs {match['상대팀']} ({match['장소']})"
+        choice = st.selectbox(
+            label,
+            options=["자동 계산 (확률적 반영)", "승리 ⭕", "무승부 🔺", "패배 ❌"],
+            key=f"match_{idx}"
+        )
+        user_preds.append(choice)
 
 with col2:
     st.subheader("📊 시뮬레이션 결과 및 확률")
     sim_count = st.slider("시뮬레이션 반복 횟수 설정", 1000, 10000, 3000, step=1000)
     
-    direct_p, po_p, ranks = run_simulation(df_standings, daegu_schedule, total_games=32, n_sims=sim_count)
+    direct_p, po_p, ranks = run_simulation(df_standings, daegu_schedule, user_preds, total_games=32, n_sims=sim_count)
     
     m1, m2, m3 = st.columns(3)
     m1.metric("자동 승격 (1~2위)", f"{direct_p:.1f}%")
