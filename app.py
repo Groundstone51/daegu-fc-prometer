@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 # 1. 페이지 설정
 st.set_page_config(
-    page_title="2026 K리그2 주요 팀 승격 시뮬레이터 (Bayesian)",
+    page_title="2026 K리그2 승격 시뮬레이터 (경기별 직접 선택)",
     page_icon="⚽",
     layout="wide"
 )
@@ -26,6 +26,13 @@ st.markdown("""
     }
     [data-testid="stMetricLabel"] { color: #64748B; font-weight: 600; }
     [data-testid="stMetricValue"] { color: #0085FF; font-weight: 800; }
+    .match-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
     #MainMenu, footer, header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
@@ -34,7 +41,7 @@ st.markdown("""
 @st.cache_data(ttl=3600)
 def fetch_realtime_standings():
     url = "https://sports.news.naver.com/kfootball/record/index?category=kleague2"
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=3)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -48,7 +55,7 @@ def fetch_realtime_standings():
             ga = int(row.select_one(".ga").text.strip())
             teams_data.append({"팀": name, "승점": pts, "경기수": games, "득점": gf, "실점": ga})
         if teams_data:
-            return pd.DataFrame(teams_data), "🔴 실시간 갱신됨 (네이버 스포츠 연동)"
+            return pd.DataFrame(teams_data), "🔴 실시간 갱신됨 (네이버 연동)"
     except Exception:
         pass
         
@@ -71,60 +78,38 @@ def fetch_realtime_standings():
         {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34},
         {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43}
     ]
-    return pd.DataFrame(default_teams), "🟡 기준 데이터 로드됨"
+    return pd.DataFrame(default_teams), "🟡 기본 일정 로드됨"
+
+# 4. K리그2 잔여 경기 일정 크롤링/로드
+@st.cache_data(ttl=3600)
+def fetch_remaining_matches():
+    # 실제 잔여 일정 크롤링 실패 시 적용되는 라운드별 경기일정 데이터
+    default_schedule = [
+        {"R": 27, "홈팀": "수원 FC", "원정팀": "수원 삼성 블루윙즈"},
+        {"R": 27, "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
+        {"R": 27, "홈팀": "화성 FC", "원정팀": "부산 아이파크"},
+        {"R": 27, "홈팀": "성남 FC", "원정팀": "충남 아산 FC"},
+        {"R": 28, "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
+        {"R": 28, "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
+        {"R": 28, "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"},
+        {"R": 29, "홈팀": "수원 FC", "원정팀": "서울 이랜드 FC"},
+        {"R": 29, "홈팀": "대구 FC", "원정팀": "화성 FC"},
+        {"R": 29, "홈팀": "수원 삼성 블루윙즈", "원정팀": "부산 아이파크"},
+        {"R": 30, "홈팀": "전남 드래곤즈", "원정팀": "대구 FC"},
+        {"R": 30, "홈팀": "화성 FC", "원정팀": "수원 FC"},
+        {"R": 30, "홈팀": "수원 삼성 블루윙즈", "원정팀": "서울 이랜드 FC"},
+    ]
+    return default_schedule
 
 df_standings, status_msg = fetch_realtime_standings()
+remaining_matches = fetch_remaining_matches()
 
-st.title("⚽ 2026 K리그2 승격 가능성 시뮬레이터 (Bayesian Model)")
-st.caption(f"다중 팀 직접 결과 제어 및 포아송 연산 엔진 | {status_msg}")
+st.title("⚽ K리그2 직관적 잔여경기 승격 시뮬레이터")
+st.caption(f"경기별 [홈승 / 무승부 / 원정승] 즉시 선택 가능 엔진 | {status_msg}")
 st.divider()
 
-# 팀별 잔여 경기 일정 데이터베이스
-team_schedules = {
-    "대구 FC": [
-        {"R": 27, "상대팀": "서울 이랜드 FC", "장소": "원정"},
-        {"R": 28, "상대팀": "수원 삼성 블루윙즈", "장소": "홈"},
-        {"R": 29, "상대팀": "화성 FC", "장소": "홈"},
-        {"R": 30, "상대팀": "전남 드래곤즈", "장소": "원정"},
-        {"R": 31, "상대팀": "수원 FC", "장소": "원정"},
-        {"R": 32, "상대팀": "경남 FC", "장소": "홈"},
-    ],
-    "수원 FC": [
-        {"R": 27, "상대팀": "수원 삼성 블루윙즈", "장소": "홈"},
-        {"R": 28, "상대팀": "부산 아이파크", "장소": "원정"},
-        {"R": 29, "상대팀": "서울 이랜드 FC", "장소": "홈"},
-        {"R": 30, "상대팀": "화성 FC", "장소": "원정"},
-        {"R": 31, "상대팀": "대구 FC", "장소": "홈"},
-        {"R": 32, "상대팀": "성남 FC", "장소": "원정"},
-    ],
-    "수원 삼성 블루윙즈": [
-        {"R": 27, "상대팀": "수원 FC", "장소": "원정"},
-        {"R": 28, "상대팀": "대구 FC", "장소": "원정"},
-        {"R": 29, "상대팀": "부산 아이파크", "장소": "홈"},
-        {"R": 30, "상대팀": "서울 이랜드 FC", "장소": "홈"},
-    ],
-    "서울 이랜드 FC": [
-        {"R": 27, "상대팀": "대구 FC", "장소": "홈"},
-        {"R": 28, "상대팀": "화성 FC", "장소": "원정"},
-        {"R": 29, "상대팀": "수원 FC", "장소": "원정"},
-        {"R": 30, "상대팀": "수원 삼성 블루윙즈", "장소": "원정"},
-    ],
-    "화성 FC": [
-        {"R": 27, "상대팀": "부산 아이파크", "장소": "홈"},
-        {"R": 28, "상대팀": "서울 이랜드 FC", "장소": "홈"},
-        {"R": 29, "상대팀": "대구 FC", "장소": "원정"},
-        {"R": 30, "상대팀": "수원 FC", "장소": "홈"},
-    ],
-    "부산 아이파크": [
-        {"R": 27, "상대팀": "화성 FC", "장소": "원정"},
-        {"R": 28, "상대팀": "수원 FC", "장소": "홈"},
-        {"R": 29, "상대팀": "수원 삼성 블루윙즈", "장소": "원정"},
-        {"R": 30, "상대팀": "충남 아산 FC", "장소": "홈"},
-    ]
-}
-
-# 4. 베이지안 포아송 다중 팀 시뮬레이션 엔진
-def run_bayesian_simulation_multi(df, schedules, all_predictions, total_games=32, n_sims=3000):
+# 5. 베이지안 포아송 잔여 경기 연산 엔진
+def run_match_based_simulation(df, schedule, match_predictions, total_games=32, n_sims=3000):
     teams = df['팀'].values
     n_teams = len(teams)
     team_idx = {t: i for i, t in enumerate(teams)}
@@ -140,35 +125,33 @@ def run_bayesian_simulation_multi(df, schedules, all_predictions, total_games=32
     games_played = df['경기수'].values.copy()
     pts_sim = np.tile(base_pts, (n_sims, 1))
     
-    # 선택된 모든 주요 팀의 경기 결과 적용
-    for team_name, match_preds in all_predictions.items():
-        if team_name not in team_idx or team_name not in schedules:
-            continue
-        t_i = team_idx[team_name]
+    # 직접 결과가 입력된 경기 처리
+    for m_idx, match in enumerate(schedule):
+        home_team = match["홈팀"]
+        away_team = match["원정팀"]
         
-        for idx, match in enumerate(schedules[team_name]):
-            opp_i = team_idx.get(match["상대팀"])
-            choice = match_preds[idx]
+        if home_team not in team_idx or away_team not in team_idx:
+            continue
             
-            if choice == "자동 계산 (베이지안 확률)":
-                continue  # 자동 계산은 하단 난수 시뮬레이션에서 일괄 처리
-                
-            if choice == "승리 ⭕":
-                res = np.full(n_sims, 3)
-            elif choice == "무승부 🔺":
-                res = np.full(n_sims, 1)
-            elif choice == "패배 ❌":
-                res = np.full(n_sims, 0)
-                
-            pts_sim[:, t_i] += res
-            games_played[t_i] += 1
+        h_i = team_idx[home_team]
+        a_i = team_idx[away_team]
+        choice = match_predictions.get(m_idx, "🎲 자동 (베이지안)")
+        
+        if choice == "🎲 자동 (베이지안)":
+            continue
             
-            if opp_i is not None:
-                opp_res = np.where(res == 3, 0, np.where(res == 1, 1, 3))
-                pts_sim[:, opp_i] += opp_res
-                games_played[opp_i] += 1
+        if choice == "🏠 홈승":
+            pts_sim[:, h_i] += 3
+        elif choice == "🔺 무승부":
+            pts_sim[:, h_i] += 1
+            pts_sim[:, a_i] += 1
+        elif choice == "✈️ 원정승":
+            pts_sim[:, a_i] += 3
+            
+        games_played[h_i] += 1
+        games_played[a_i] += 1
 
-    # 나머지 지정되지 않은 경기들의 베이지안 시뮬레이션
+    # 나머지 지정되지 않은 경기의 베이지안 난수 시뮬레이션
     for i in range(n_teams):
         rem = total_games - games_played[i]
         if rem > 0:
@@ -179,57 +162,58 @@ def run_bayesian_simulation_multi(df, schedules, all_predictions, total_games=32
             sim_adds = np.random.choice([3, 1, 0], size=(n_sims, int(rem)), p=[p_win, p_draw, p_loss]).sum(axis=1)
             pts_sim[:, i] += sim_adds
 
-    # 전 구단 최종 순위 확률 계산
+    # 최종 순위 매트릭스 계산
     rank_matrix = np.zeros((n_sims, n_teams))
     for s in range(n_sims):
-        # 승점 내림차순 순위 산출
         order = np.argsort(-pts_sim[s, :])
         for r, t_idx in enumerate(order, start=1):
             rank_matrix[s, t_idx] = r
 
     return rank_matrix, teams, team_idx
 
-# 5. UI 출력
-col1, col2 = st.columns([1, 2])
+# 6. UI 영역 구성
+col1, col2 = st.columns([1.2, 1.8])
 
 with col1:
-    st.subheader("📋 K리그2 현재 순위표")
-    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=220)
+    st.subheader("📋 K리그2 현재 순위")
+    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=200)
     
-    st.subheader("🗓️ 팀별 잔여 경기 직접 선택")
+    st.subheader("🗓️ 잔여 경기 일정 및 결과 직접 선택")
+    st.caption("각 경기의 승/무/패를 직접 고르시면 우측 승격 확률에 즉시 반영됩니다.")
     
-    # 탭을 통해 대구 FC 외 수원 FC, 수원 삼성 등 여러 팀의 결과를 선택 가능
-    selected_teams = ["대구 FC", "수원 FC", "수원 삼성 블루윙즈", "서울 이랜드 FC", "화성 FC", "부산 아이파크"]
-    tabs = st.tabs(selected_teams)
+    match_preds = {}
     
-    all_user_preds = {}
+    # 라운드별로 묶어서 경기 일정 표시
+    rounds = sorted(list(set([m["R"] for m in remaining_matches])))
     
-    for team_name, tab in zip(selected_teams, tabs):
-        with tab:
-            st.caption(f"**{team_name}**의 승/무/패를 선택하세요.")
-            team_preds = []
-            if team_name in team_schedules:
-                for idx, match in enumerate(team_schedules[team_name]):
-                    label = f"R{match['R']} vs {match['상대팀']} ({match['장소']})"
-                    choice = st.selectbox(
-                        label, 
-                        options=["자동 계산 (베이지안 확률)", "승리 ⭕", "무승부 🔺", "패배 ❌"], 
-                        key=f"match_{team_name}_{idx}"
-                    )
-                    team_preds.append(choice)
-            all_user_preds[team_name] = team_preds
+    for r in rounds:
+        with st.expander(f"📌 Round {r} 경기 일정", expanded=True):
+            r_matches = [m for m in remaining_matches if m["R"] == r]
+            for idx, match in enumerate(r_matches):
+                m_global_idx = remaining_matches.index(match)
+                
+                # 직관적인 카드 형태 UI
+                st.markdown(f"**{match['홈팀']}** vs **{match['원정팀']}**")
+                choice = st.radio(
+                    label=f"r_{r}_{idx}",
+                    options=["🎲 자동 (베이지안)", "🏠 홈승", "🔺 무승부", "✈️ 원정승"],
+                    horizontal=True,
+                    key=f"radio_match_{m_global_idx}",
+                    label_visibility="collapsed"
+                )
+                match_preds[m_global_idx] = choice
 
 with col2:
-    st.subheader("📊 시뮬레이션 결과 및 확률")
+    st.subheader("📊 승격 확률 및 최종 순위 예측")
     
-    sim_count = st.slider("시뮬레이션 반복 횟수 설정", 1000, 10000, 3000, step=1000)
+    sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 10000, 3000, step=1000)
     
-    rank_matrix, teams, team_idx = run_bayesian_simulation_multi(
-        df_standings, team_schedules, all_user_preds, total_games=32, n_sims=sim_count
+    rank_matrix, teams, team_idx = run_match_based_simulation(
+        df_standings, remaining_matches, match_preds, total_games=32, n_sims=sim_count
     )
     
-    # 분석 대상 팀 선택
-    target_team = st.selectbox("확률을 확인할 분석 대상 팀 선택", options=selected_teams, index=0)
+    # 확인할 분석 대상 팀 선택
+    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=1)
     
     target_i = team_idx[target_team]
     target_ranks = rank_matrix[:, target_i]
@@ -238,8 +222,8 @@ with col2:
     po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
     
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"{target_team} 자동 승격 (1~2위)", f"{direct_p:.1f}%")
-    m2.metric(f"{target_team} PO 진출 (3~6위)", f"{po_p:.1f}%")
+    m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
+    m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
     m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
     
     rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
@@ -252,7 +236,7 @@ with col2:
         x="순위", 
         y="빈도수", 
         text="빈도수", 
-        title=f"<b>{target_team} 최종 순위 분포 (베이지안 분석)</b>",
+        title=f"<b>{target_team} 예상 최종 순위 분포</b>",
         color_discrete_sequence=["#0085FF"]
     )
     fig.update_layout(
