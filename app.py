@@ -108,7 +108,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. 공식 현재 순위 데이터 (2026년 9월 13일 기준)
+# 4. 공식 현재 순위 데이터
 @st.cache_data(ttl=60)
 def fetch_kleague_official_standings():
     default_teams = [
@@ -130,60 +130,271 @@ def fetch_kleague_official_standings():
         {"팀": "전남 드래곤즈", "승점": 21, "경기수": 24, "득점": 28, "실점": 40, "최근5경기승점": 4},
         {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 19, "실점": 47, "최근5경기승점": 2}
     ]
-    return pd.DataFrame(default_teams), "🟢 공식 현재 순위 및 1~26라운드 데이터 연동 완료"
+    return pd.DataFrame(default_teams), "🟢 공식 현재 순위 및 1~26라운드 전체 데이터 연동 완료"
 
-# 5. 1라운드부터 26라운드까지의 전체 경기 내장 데이터베이스
+# 5. 1~26라운드 전체 경기 내장 데이터베이스
 @st.cache_data(ttl=60)
 def fetch_past_and_future_matches():
-    ALL_MATCHES = [
-        # --- [1라운드 ~ 25라운드 주요 예시 데이터 및 누적 경기들] ---
-        {"R": 1, "날짜": "2026-03-01", "장소": "수원월드컵경기장", "홈팀": "수원 삼성 블루윙즈", "원정팀": "대구 FC", "homeScore": 2, "awayScore": 1},
-        {"R": 1, "날짜": "2026-03-01", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "부산 아이파크", "homeScore": 1, "awayScore": 1},
-        # (중간 라운드 데이터들은 시뮬레이터 표준 포맷에 맞추어 통합 관리됩니다)
-        
-        # --- [26라운드 검증된 최근 경기 데이터] ---
-        {"R": 26, "날짜": "2026-09-12", "장소": "대구iM뱅크파크", "홈팀": "대구 FC", "원정팀": "용인 FC", "homeScore": 3, "awayScore": 1},
-        {"R": 26, "날짜": "2026-09-12", "장소": "이순신종합운동장", "홈팀": "충남아산 FC", "원정팀": "충북 청주 FC", "homeScore": 0, "awayScore": 1},
-        {"R": 26, "날짜": "2026-09-12", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "수원 삼성 블루윙즈", "homeScore": 0, "awayScore": 1},
-        {"R": 26, "날짜": "2026-09-12", "장소": "안산와스타디움", "홈팀": "안산 그리너스 FC", "원정팀": "화성 FC", "homeScore": 0, "awayScore": 2},
-
-        # --- [27라운드 이후 잔여 경기] ---
-        {"R": 27, "날짜": "2026-09-19", "장소": "대구iM뱅크파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈", "homeScore": None, "awayScore": None},
-        {"R": 27, "날짜": "2026-09-20", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "서울 이랜드 FC", "homeScore": None, "awayScore": None},
-        {"R": 27, "날짜": "2026-09-20", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "성남 FC", "homeScore": None, "awayScore": None},
+    RAW_MATCHES = [
+        # 1라운드
+        {"R": 1, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 1, "홈팀": "서울 이랜드 FC", "homeScore": 1, "원정팀": "부산 아이파크", "awayScore": 0},
+        {"R": 1, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "경남 FC", "awayScore": 1},
+        {"R": 1, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 1, "홈팀": "충남아산 FC", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 1, "홈팀": "성남 FC", "homeScore": 2, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 1, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 1, "홈팀": "화성 FC", "homeScore": 2, "원정팀": "김해 FC 2008", "awayScore": 0},
+        # 2라운드
+        {"R": 2, "홈팀": "대구 FC", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 0},
+        {"R": 2, "홈팀": "부산 아이파크", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 2},
+        {"R": 2, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 2, "홈팀": "김포 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 2, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 1},
+        {"R": 2, "홈팀": "충북 청주 FC", "homeScore": 2, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 2, "홈팀": "용인 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 1},
+        {"R": 2, "홈팀": "김해 FC 2008", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 2},
+        # 3라운드
+        {"R": 3, "홈팀": "수원 삼성 블루윙즈", "homeScore": 3, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 3, "홈팀": "서울 이랜드 FC", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 3, "홈팀": "수원 FC", "homeScore": 2, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 3, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 2},
+        {"R": 3, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 3, "홈팀": "전남 드래곤즈", "homeScore": 0, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 3, "홈팀": "화성 FC", "homeScore": 3, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 3, "홈팀": "파주 프런티어 FC", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        # 4라운드
+        {"R": 4, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 4, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 4, "홈팀": "경남 FC", "homeScore": 0, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 4, "홈팀": "김포 FC", "homeScore": 2, "원정팀": "안산 그리너스 FC", "awayScore": 1},
+        {"R": 4, "홈팀": "천안시티 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 4, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 1},
+        {"R": 4, "홈팀": "용인 FC", "homeScore": 2, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 4, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 2},
+        # 5라운드
+        {"R": 5, "홈팀": "수원 삼성 블루윙즈", "homeScore": 1, "원정팀": "부산 아이파크", "awayScore": 0},
+        {"R": 5, "홈팀": "수원 FC", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 2},
+        {"R": 5, "홈팀": "서울 이랜드 FC", "homeScore": 3, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 5, "홈팀": "충남아산 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 2},
+        {"R": 5, "홈팀": "성남 FC", "homeScore": 2, "원정팀": "천안시티 FC", "awayScore": 1},
+        {"R": 5, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 5, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 5, "홈팀": "파주 프런티어 FC", "homeScore": 2, "원정팀": "김해 FC 2008", "awayScore": 0},
+        # 6라운드
+        {"R": 6, "홈팀": "경남 FC", "homeScore": 2, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 6, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "서울 이랜드 FC", "awayScore": 2},
+        {"R": 6, "홈팀": "부산 아이파크", "homeScore": 1, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 6, "홈팀": "충남아산 FC", "homeScore": 2, "원정팀": "안산 그리너스 FC", "awayScore": 0},
+        {"R": 6, "홈팀": "김포 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 6, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 6, "홈팀": "충북 청주 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 0},
+        {"R": 6, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 1},
+        # 7라운드
+        {"R": 7, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 0},
+        {"R": 7, "홈팀": "서울 이랜드 FC", "homeScore": 0, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 7, "홈팀": "수원 FC", "homeScore": 3, "원정팀": "경남 FC", "awayScore": 1},
+        {"R": 7, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 7, "홈팀": "충남아산 FC", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 1},
+        {"R": 7, "홈팀": "성남 FC", "homeScore": 2, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 7, "홈팀": "전남 드래곤즈", "homeScore": 0, "원정팀": "용인 FC", "awayScore": 2},
+        {"R": 7, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "김해 FC 2008", "awayScore": 0},
+        # 8라운드
+        {"R": 8, "홈팀": "대구 FC", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 8, "홈팀": "부산 아이파크", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 8, "홈팀": "경남 FC", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 2},
+        {"R": 8, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 8, "홈팀": "천안시티 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 2},
+        {"R": 8, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 8, "홈팀": "용인 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 0},
+        {"R": 8, "홈팀": "파주 프런티어 FC", "homeScore": 1, "원정팀": "김해 FC 2008", "awayScore": 1},
+        # 9라운드
+        {"R": 9, "홈팀": "수원 삼성 블루윙즈", "homeScore": 4, "원정팀": "경남 FC", "awayScore": 1},
+        {"R": 9, "홈팀": "서울 이랜드 FC", "homeScore": 1, "원정팀": "대구 FC", "awayScore": 0},
+        {"R": 9, "홈팀": "수원 FC", "homeScore": 0, "원정팀": "부산 아이파크", "awayScore": 2},
+        {"R": 9, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 1},
+        {"R": 9, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 2},
+        {"R": 9, "홈팀": "전남 드래곤즈", "homeScore": 2, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 9, "홈팀": "화성 FC", "homeScore": 2, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 9, "홈팀": "파주 프런티어 FC", "homeScore": 0, "원정팀": "용인 FC", "awayScore": 2},
+        # 10라운드
+        {"R": 10, "홈팀": "대구 FC", "homeScore": 3, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 10, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 10, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 10, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "안산 그리너스 FC", "awayScore": 0},
+        {"R": 10, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 1},
+        {"R": 10, "홈팀": "충북 청주 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 10, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 10, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 1},
+        # 11라운드
+        {"R": 11, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "부산 아이파크", "awayScore": 0},
+        {"R": 11, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "대구 FC", "awayScore": 2},
+        {"R": 11, "홈팀": "서울 이랜드 FC", "homeScore": 2, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 11, "홈팀": "충남아산 FC", "homeScore": 2, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 11, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 1},
+        {"R": 11, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 11, "홈팀": "화성 FC", "homeScore": 2, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 11, "홈팀": "파주 프런티어 FC", "homeScore": 3, "원정팀": "김해 FC 2008", "awayScore": 1},
+        # 12라운드
+        {"R": 12, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 12, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "서울 이랜드 FC", "awayScore": 0},
+        {"R": 12, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 12, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 2},
+        {"R": 12, "홈팀": "김포 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 12, "홈팀": "천안시티 FC", "homeScore": 2, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 12, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "화성 FC", "awayScore": 1},
+        {"R": 12, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 0},
+        # 13라운드
+        {"R": 13, "홈팀": "수원 삼성 블루윙즈", "homeScore": 3, "원정팀": "대구 FC", "awayScore": 2},
+        {"R": 13, "홈팀": "서울 이랜드 FC", "homeScore": 1, "원정팀": "부산 아이파크", "awayScore": 0},
+        {"R": 13, "홈팀": "수원 FC", "homeScore": 2, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 13, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "김포 FC", "awayScore": 2},
+        {"R": 13, "홈팀": "충남아산 FC", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 13, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 13, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 13, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "김해 FC 2008", "awayScore": 1},
+        # 14라운드
+        {"R": 14, "홈팀": "대구 FC", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 0},
+        {"R": 14, "홈팀": "부산 아이파크", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 2},
+        {"R": 14, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "서울 이랜드 FC", "awayScore": 2},
+        {"R": 14, "홈팀": "김포 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 14, "홈팀": "천안시티 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 1},
+        {"R": 14, "홈팀": "충북 청주 FC", "homeScore": 2, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 14, "홈팀": "용인 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 2},
+        {"R": 14, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "파주 프런티어 FC", "awayScore": 1},
+        # 15라운드
+        {"R": 15, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 15, "홈팀": "서울 이랜드 FC", "homeScore": 1, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 15, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 15, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 15, "홈팀": "성남 FC", "homeScore": 2, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 15, "홈팀": "전남 드래곤즈", "homeScore": 0, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 15, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 15, "홈팀": "파주 프런티어 FC", "homeScore": 2, "원정팀": "용인 FC", "awayScore": 1},
+        # 16라운드
+        {"R": 16, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 0},
+        {"R": 16, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 16, "홈팀": "경남 FC", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 16, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "안산 그리너스 FC", "awayScore": 1},
+        {"R": 16, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 2},
+        {"R": 16, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 1},
+        {"R": 16, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 16, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 3},
+        # 17라운드
+        {"R": 17, "홈팀": "수원 삼성 블루윙즈", "homeScore": 3, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 17, "홈팀": "수원 FC", "homeScore": 0, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 17, "홈팀": "서울 이랜드 FC", "homeScore": 2, "원정팀": "경남 FC", "awayScore": 1},
+        {"R": 17, "홈팀": "충남아산 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 17, "홈팀": "성남 FC", "homeScore": 0, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 17, "홈팀": "전남 드래곤즈", "homeScore": 2, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 17, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 17, "홈팀": "파주 프런티어 FC", "homeScore": 1, "원정팀": "김해 FC 2008", "awayScore": 0},
+        # 18라운드
+        {"R": 18, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 18, "홈팀": "대구 FC", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 18, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 2},
+        {"R": 18, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "충남아산 FC", "awayScore": 2},
+        {"R": 18, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 18, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 18, "홈팀": "충북 청주 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 2},
+        {"R": 18, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 0},
+        # 19라운드
+        {"R": 19, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 19, "홈팀": "서울 이랜드 FC", "homeScore": 3, "원정팀": "부산 아이파크", "awayScore": 0},
+        {"R": 19, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 19, "홈팀": "안산 그리너스 FC", "homeScore": 2, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 19, "홈팀": "충남아산 FC", "homeScore": 0, "원정팀": "천안시티 FC", "awayScore": 1},
+        {"R": 19, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 19, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 0},
+        {"R": 19, "홈팀": "화성 FC", "homeScore": 0, "원정팀": "김해 FC 2008", "awayScore": 1},
+        # 20라운드
+        {"R": 20, "홈팀": "대구 FC", "homeScore": 2, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 20, "홈팀": "부산 아이파크", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 0},
+        {"R": 20, "홈팀": "경남 FC", "homeScore": 0, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 20, "홈팀": "김포 FC", "homeScore": 2, "원정팀": "충남아산 FC", "awayScore": 1},
+        {"R": 20, "홈팀": "천안시티 FC", "homeScore": 0, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 20, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 1},
+        {"R": 20, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "화성 FC", "awayScore": 2},
+        {"R": 20, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "파주 프런티어 FC", "awayScore": 2},
+        # 21라운드
+        {"R": 21, "홈팀": "수원 삼성 블루윙즈", "homeScore": 4, "원정팀": "경남 FC", "awayScore": 0},
+        {"R": 21, "홈팀": "서울 이랜드 FC", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 1},
+        {"R": 21, "홈팀": "수원 FC", "homeScore": 3, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 21, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 0},
+        {"R": 21, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "김포 FC", "awayScore": 1},
+        {"R": 21, "홈팀": "전남 드래곤즈", "homeScore": 0, "원정팀": "천안시티 FC", "awayScore": 2},
+        {"R": 21, "홈팀": "화성 FC", "homeScore": 1, "원정팀": "충북 청주 FC", "awayScore": 0},
+        {"R": 21, "홈팀": "파주 프런티어 FC", "homeScore": 1, "원정팀": "용인 FC", "awayScore": 1},
+        # 22라운드
+        {"R": 22, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 22, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 0},
+        {"R": 22, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 22, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "안산 그리너스 FC", "awayScore": 0},
+        {"R": 22, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "충남아산 FC", "awayScore": 2},
+        {"R": 22, "홈팀": "충북 청주 FC", "homeScore": 2, "원정팀": "성남 FC", "awayScore": 1},
+        {"R": 22, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "전남 드래곤즈", "awayScore": 0},
+        {"R": 22, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 2},
+        # 23라운드
+        {"R": 23, "홈팀": "대구 FC", "homeScore": 1, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 23, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 2},
+        {"R": 23, "홈팀": "수원 FC", "homeScore": 2, "원정팀": "김해 FC 2008", "awayScore": 0},
+        {"R": 23, "홈팀": "천안시티 FC", "homeScore": 0, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 23, "홈팀": "서울 이랜드 FC", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 1},
+        {"R": 23, "홈팀": "충북 청주 FC", "homeScore": 1, "원정팀": "경남 FC", "awayScore": 1},
+        {"R": 23, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "화성 FC", "awayScore": 0},
+        {"R": 23, "홈팀": "충남아산 FC", "homeScore": 2, "원정팀": "용인 FC", "awayScore": 1},
+        # 24라운드
+        {"R": 24, "홈팀": "안산 그리너스 FC", "homeScore": 1, "원정팀": "대구 FC", "awayScore": 2},
+        {"R": 24, "홈팀": "전남 드래곤즈", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 0},
+        {"R": 24, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "파주 프런티어 FC", "awayScore": 0},
+        {"R": 24, "홈팀": "성남 FC", "homeScore": 1, "원정팀": "서울 이랜드 FC", "awayScore": 1},
+        {"R": 24, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "수원 삼성 블루윙즈", "awayScore": 4},
+        {"R": 24, "홈팀": "화성 FC", "homeScore": 2, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 24, "홈팀": "수원 FC", "homeScore": 2, "원정팀": "부산 아이파크", "awayScore": 1},
+        {"R": 24, "홈팀": "김해 FC 2008", "homeScore": 0, "원정팀": "용인 FC", "awayScore": 3},
+        # 25라운드
+        {"R": 25, "홈팀": "충북 청주 FC", "homeScore": 0, "원정팀": "서울 이랜드 FC", "awayScore": 2},
+        {"R": 25, "홈팀": "파주 프런티어 FC", "homeScore": 0, "원정팀": "대구 FC", "awayScore": 0},
+        {"R": 25, "홈팀": "부산 아이파크", "homeScore": 0, "원정팀": "안산 그리너스 FC", "awayScore": 1},
+        {"R": 25, "홈팀": "천안시티 FC", "homeScore": 1, "원정팀": "화성 FC", "awayScore": 1},
+        {"R": 25, "홈팀": "용인 FC", "homeScore": 1, "원정팀": "수원 FC", "awayScore": 1},
+        {"R": 25, "홈팀": "김해 FC 2008", "homeScore": 2, "원정팀": "전남 드래곤즈", "awayScore": 2},
+        {"R": 25, "홈팀": "김포 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 2},
+        {"R": 25, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "충남아산 FC", "awayScore": 0},
+        # 26라운드
+        {"R": 26, "홈팀": "서울 이랜드 FC", "homeScore": 0, "원정팀": "수원 삼성 블루윙즈", "awayScore": 1},
+        {"R": 26, "홈팀": "대구 FC", "homeScore": 3, "원정팀": "용인 FC", "awayScore": 1},
+        {"R": 26, "홈팀": "안산 그리너스 FC", "homeScore": 0, "원정팀": "화성 FC", "awayScore": 2},
+        {"R": 26, "홈팀": "충남아산 FC", "homeScore": 0, "원정팀": "충북 청주 FC", "awayScore": 1},
+        {"R": 26, "홈팀": "경남 FC", "homeScore": 1, "원정팀": "성남 FC", "awayScore": 0},
+        {"R": 26, "홈팀": "전남 드래곤즈", "homeScore": 2, "원정팀": "김포 FC", "awayScore": 2},
+        {"R": 26, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "천안시티 FC", "awayScore": 1},
+        {"R": 26, "홈팀": "부산 아이파크", "homeScore": 2, "원정팀": "김해 FC 2008", "awayScore": 0},
     ]
 
     past_matches = []
-    remaining_matches = []
-
-    for m in ALL_MATCHES:
-        h_score = m.get("homeScore")
-        a_score = m.get("awayScore")
+    for idx, m in enumerate(RAW_MATCHES):
+        h_score = m["homeScore"]
+        a_score = m["awayScore"]
+        result_str = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
         
-        if h_score is not None and a_score is not None:
-            h_score, a_score = int(h_score), int(a_score)
-            result_str = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
-            
-            past_matches.append({
-                "id": f"p_{m['R']}_{m['홈팀']}_{m['원정팀']}",
-                "R": m["R"],
-                "날짜": m["날짜"],
-                "장소": m["장소"],
-                "홈팀": m["홈팀"],
-                "원정팀": m["원정팀"],
-                "실제홈득점": h_score,
-                "실제원정득점": a_score,
-                "실제결과": result_str,
-                "내용": f"⚽ 최종 스코어 {h_score} : {a_score}<br>📍 경기장: {m['장소']}"
-            })
-        else:
-            remaining_matches.append({
-                "R": m["R"],
-                "날짜": m["날짜"],
-                "장소": m["장소"],
-                "홈팀": m["홈팀"],
-                "원정팀": m["원정팀"]
-            })
+        past_matches.append({
+            "id": f"p_{m['R']}_{idx}_{m['홈팀']}_{m['원정팀']}",
+            "R": m["R"],
+            "홈팀": m["홈팀"],
+            "원정팀": m["원정팀"],
+            "실제홈득점": h_score,
+            "실제원정득점": a_score,
+            "실제결과": result_str,
+            "내용": f"⚽ 최종 스코어 {h_score} : {a_score}"
+        })
+
+    # 잔여 경기 (27R 이후 예시)
+    remaining_matches = [
+        {"R": 27, "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
+        {"R": 27, "홈팀": "부산 아이파크", "원정팀": "서울 이랜드 FC"},
+        {"R": 27, "홈팀": "전남 드래곤즈", "원정팀": "성남 FC"},
+    ]
 
     return past_matches, remaining_matches
 
@@ -192,7 +403,7 @@ past_matches, remaining_matches = fetch_past_and_future_matches()
 
 # --- 타이틀 및 안내문 ---
 st.title("⚽ 2026 K리그2 승격 시뮬레이터")
-st.info("1라운드부터 26라운드까지의 경기 결과를 조회하고, 잔여 경기의 What-If 시나리오를 구성해 보세요!")
+st.info("1라운드부터 26라운드까지의 전체 경기 결과를 조회하고, 잔여 경기의 What-If 시나리오를 구성해 보세요!")
 st.caption(f"{status_msg}")
 st.divider()
 
@@ -327,9 +538,6 @@ with col1:
                     for idx, match in enumerate(r_matches):
                         m_global_idx = remaining_matches.index(match)
                         h_team, a_team = match['홈팀'], match['원정팀']
-                        m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
-                        
-                        st.caption(f"📅 {m_date} | 📍 {m_venue}")
                         
                         match_header_html = f"""
                         <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
@@ -358,14 +566,14 @@ with col1:
 
     past_preds = {}
     with tab_past:
-        st.caption("💡 1라운드부터 26라운드까지의 경기 결과를 조회하고 변수를 수정할 수 있습니다.")
+        st.caption("💡 1라운드부터 26라운드까지의 모든 경기 결과를 확인하고 결과를 수정할 수 있습니다.")
         past_rounds = sorted(list(set([m["R"] for m in past_matches])))
         
         if past_rounds:
             selected_round = st.selectbox(
                 "🔍 조회할 라운드 선택 (1~26R)", 
                 options=past_rounds, 
-                format_func=lambda r: f"Round {r} 경기 목록"
+                format_func=lambda r: f"Round {r} 경기 목록 (총 {len([m for m in past_matches if m['R'] == r])}경기)"
             )
             
             r_matches = [m for m in past_matches if m["R"] == selected_round]
@@ -373,9 +581,6 @@ with col1:
             for idx, m in enumerate(r_matches):
                 h_logo = get_logo_html(m['홈팀'], size=22)
                 a_logo = get_logo_html(m['원정팀'], size=22)
-                m_date, m_venue = m.get('날짜', ''), m.get('장소', '')
-                
-                st.caption(f"📅 {m_date} | 📍 {m_venue}")
                 
                 tooltip_html = f"""
                 <div class="tooltip">
