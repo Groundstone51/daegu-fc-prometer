@@ -168,14 +168,26 @@ col1, col2 = st.columns([1.3, 1.7])
 with col1:
     st.subheader("⚙️ 승/무/패 조건 직접 선택")
     
-    # 💡 보고 싶은 팀만 선택하는 멀티셀렉트 필터 추가
+    # 💡 드롭박스 대신 직관적인 팀별 체크박스 리스트 적용
     all_teams_list = sorted(list(set(matches_df['홈팀']).union(set(matches_df['원정팀']))))
-    selected_filter_teams = st.multiselect(
-        "🔍 보고 싶은 팀 선택 (선택하지 않으면 전체 표시)",
-        options=all_teams_list,
-        default=[]
-    )
     
+    with st.expander("🔍 팀별 경기 필터 (클릭해서 열기/닫기)", expanded=False):
+        st.caption("보고 싶은 팀만 체크하세요. (모두 체크 해제 시 전체 경기 표시)")
+        
+        # 전체 선택/해제 편의 버튼
+        select_all = st.checkbox("✅ 전체 팀 선택", value=False)
+        
+        selected_filter_teams = []
+        # 3열 구조로 체크박스 배치하여 공간 절약
+        cols = st.expander("팀 목록 세부 선택", expanded=True) if False else st.columns(3)
+        
+        for i, team in enumerate(all_teams_list):
+            col_idx = i % 3
+            with cols[col_idx]:
+                is_checked = st.checkbox(team, value=select_all, key=f"chk_team_{team}")
+                if is_checked or select_all:
+                    selected_filter_teams.append(team)
+
     tab_fut, tab_past = st.tabs(["🗓️ 잔여 경기 예측 (27~34R)", "🔄 과거 경기 What-If (1~26R)"])
     
     future_choices = {}
@@ -243,7 +255,6 @@ with col1:
 
 with col2:
     st.subheader(f"📊 {my_team} 베이지안 승격 예측 리포트")
-    # 💡 기본값 2500회 설정
     sim_count = st.slider("시뮬레이션 회수", 1000, 10000, 2500, step=100)
     
     # 튜플 기반 속도 최적화 캡처
