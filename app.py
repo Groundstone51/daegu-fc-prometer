@@ -329,7 +329,23 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
 col1, col2 = st.columns([1.3, 1.7])
 
 with col1:
-    st.subheader("⚙️ 승률 분석 가중치 설정")
+    # 승률 분석 가중치 설정 제목 + 물음표 툴팁 HTML
+    tooltip_header_html = """
+    <div style="display: flex; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0; padding: 0; font-size: 1.3rem; font-weight: 700;">⚙️ 승률 분석 가중치 설정</h3>
+        <div class="tooltip" style="display: inline-block; width: auto; margin-left: 8px; padding: 0; border: none; background: none;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: #E2E8F0; color: #475569; font-size: 0.8rem; font-weight: bold; cursor: pointer;">?</span>
+            <span class="tooltiptext" style="width: 300px; left: 50%; margin-left: -150px;">
+                <b>💡 승률 분석 가중치란?</b><br>
+                시뮬레이션 시 각 팀의 승리 확률을 계산할 때 <b>최근 흐름</b>과 <b>홈 이점</b>을 얼마나 강하게 반영할지 조절하는 파라미터입니다.<br><br>
+                • <b>최근 5경기 흐름</b>: 높은 값일수록 최근 연승/상승세 팀의 승률을 가산합니다.<br>
+                • <b>홈 경기 이점</b>: 높은 값일수록 홈팀의 기대 득점을 올려 홈 승률을 극대화합니다.
+            </span>
+        </div>
+    </div>
+    """
+    st.markdown(tooltip_header_html, unsafe_allow_html=True)
+    
     form_w = st.slider("최근 5경기 흐름 반영 비중", 0.0, 0.5, 0.2, step=0.05)
     home_adv = st.slider("홈 경기 이점 가중치", 0.0, 0.3, 0.1, step=0.05)
     
