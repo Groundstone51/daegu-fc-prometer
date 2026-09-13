@@ -112,7 +112,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. K리그 공식 웹사이트 순위 크롤링
+# 4. K리그 공식 웹사이트 순위 크롤링 및 백업 데이터
 @st.cache_data(ttl=60)
 def fetch_kleague_official_standings():
     url = "https://www.kleague.com/record/team.do"
@@ -160,56 +160,51 @@ def fetch_kleague_official_standings():
         {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34, "최근5경기승점": 2},
         {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43, "최근5경기승점": 1}
     ]
-    return pd.DataFrame(default_teams), "🟢 1분 주기 로드 (K리그 공식 백업)"
+    return pd.DataFrame(default_teams), "🟢 1분 주기 로드 (네이버/K리그 백업)"
 
-# 5. 실시간 K리그 API 연동 및 자동 경기 상태 분류 (종료 경기 -> 지난 경기 / 미경기 -> 잔여 경기)
+# 5. 네이버 스포츠 API 1차 시도 & K리그 API 2차 백업 연동 (실시간 경기 수집 및 자동 상태 분류)
 @st.cache_data(ttl=60)
 def fetch_past_and_future_matches():
     past_matches = []
     remaining_matches = []
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.kleague.com/schedule/schedule_list.do",
-        "X-Requested-With": "XMLHttpRequest"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://m.sports.naver.com/"
+    }
+    
+    # 1차 시도: 네이버 스포츠 일정 API
+    naver_url = "https://api-gw.sports.naver.com/schedule/games"
+    params = {
+        "category": "kleague2",
+        "fromDate": "2026-03-01",
+        "toDate": "2026-11-30"
     }
     
     try:
-        url = "https://www.kleague.com/api/schedule.do"
-        params = {"leagueId": "2", "yearId": "2026"}
-        res = requests.get(url, headers=headers, params=params, timeout=10)
-        
+        res = requests.get(naver_url, headers=headers, params=params, timeout=8)
         if res.status_code == 200:
             data = res.json()
-            match_list = data.get("data", []) or data.get("datalist", []) or data.get("list", [])
+            games = data.get("content", {}).get("games", [])
             
-            for m in match_list:
-                r_num = int(m.get("MEET_RND", m.get("round", 1)))
-                h_team = m.get("HOME_TEAM_NAME", m.get("homeTeamName", ""))
-                a_team = m.get("AWAY_TEAM_NAME", m.get("awayTeamName", ""))
-                m_date = m.get("GAME_DATE", m.get("gameDate", ""))
-                m_venue = m.get("STADIUM_NAME", m.get("stadiumName", ""))
+            for g in games:
+                r_num = int(g.get("round", 1))
+                h_team = g.get("homeTeamName", "")
+                a_team = g.get("awayTeamName", "")
+                m_date = g.get("gameStartDate", "").split("T")[0]
+                m_venue = g.get("stadium", "")
+                status = g.get("statusCode", "")
                 
-                game_status = str(m.get("GAME_STATUS", m.get("status", ""))).upper()
-                h_score_raw = m.get("HOME_SCORE", m.get("homeScore"))
-                a_score_raw = m.get("AWAY_SCORE", m.get("awayScore"))
+                h_score_raw = g.get("homeTeamScore")
+                a_score_raw = g.get("awayTeamScore")
                 
-                is_finished = (
-                    game_status in ["FULL", "END", "FINISH", "FULLTIME"] or 
-                    (h_score_raw is not None and a_score_raw is not None and str(h_score_raw).isdigit())
-                )
+                is_finished = status in ["RESULT", "END", "FINISHED"] or (h_score_raw is not None and a_score_raw is not None)
                 
                 if is_finished and str(h_score_raw).isdigit() and str(a_score_raw).isdigit():
                     h_score = int(h_score_raw)
                     a_score = int(a_score_raw)
+                    result_str = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
                     
-                    if h_score > a_score:
-                        result_str = "홈승"
-                    elif h_score == a_score:
-                        result_str = "무승부"
-                    else:
-                        result_str = "원정승"
-                        
                     past_matches.append({
                         "id": f"p_{r_num}_{h_team}_{a_team}",
                         "R": r_num,
@@ -230,8 +225,46 @@ def fetch_past_and_future_matches():
                         "홈팀": h_team,
                         "원정팀": a_team
                     })
+                    
+            if past_matches or remaining_matches:
+                return past_matches, remaining_matches
+    except Exception:
+        pass
+
+    # 2차 시도: K리그 공식 API 백업
+    try:
+        url = "https://www.kleague.com/api/schedule.do"
+        k_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Referer": "https://www.kleague.com/schedule/schedule_list.do",
+            "X-Requested-With": "XMLHttpRequest"
+        }
+        res = requests.get(url, headers=k_headers, params={"leagueId": "2", "yearId": "2026"}, timeout=8)
+        if res.status_code == 200:
+            match_list = res.json().get("data", []) or res.json().get("datalist", [])
+            for m in match_list:
+                r_num = int(m.get("MEET_RND", 1))
+                h_team = m.get("HOME_TEAM_NAME", "")
+                a_team = m.get("AWAY_TEAM_NAME", "")
+                m_date = m.get("GAME_DATE", "")
+                m_venue = m.get("STADIUM_NAME", "")
+                h_score_raw = m.get("HOME_SCORE")
+                a_score_raw = m.get("AWAY_SCORE")
+                
+                if h_score_raw is not None and str(h_score_raw).isdigit():
+                    h_score, a_score = int(h_score_raw), int(a_score_raw)
+                    result_str = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
+                    past_matches.append({
+                        "id": f"p_{r_num}_{h_team}_{a_team}",
+                        "R": r_num, "날짜": m_date, "장소": m_venue,
+                        "홈팀": h_team, "원정팀": a_team,
+                        "실제홈득점": h_score, "실제원정득점": a_score, "실제결과": result_str,
+                        "내용": f"⚽ 최종 스코어 {h_score} : {a_score}<br>📍 경기장: {m_venue}"
+                    })
+                else:
+                    remaining_matches.append({"R": r_num, "날짜": m_date, "장소": m_venue, "홈팀": h_team, "원정팀": a_team})
     except Exception as e:
-        st.warning(f"실시간 데이터 연동 중 오류 발생: {e}")
+        st.warning(f"경기 일정 연동 중 오류가 발생했습니다: {e}")
 
     return past_matches, remaining_matches
 
@@ -384,42 +417,45 @@ with col1:
     with tab_future:
         st.caption("남은 경기의 승패를 고르시면 시뮬레이션에 반영됩니다.")
         fut_rounds = sorted(list(set([m["R"] for m in remaining_matches])))
-        for r in fut_rounds:
-            with st.expander(f"📌 Round {r} 잔여 경기", expanded=True):
-                r_matches = [m for m in remaining_matches if m["R"] == r]
-                for idx, match in enumerate(r_matches):
-                    m_global_idx = remaining_matches.index(match)
-                    h_team, a_team = match['홈팀'], match['원정팀']
-                    m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
-                    
-                    st.caption(f"📅 {m_date} | 📍 {m_venue}")
-                    
-                    match_header_html = f"""
-                    <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
-                        {get_logo_html(h_team, size=22)}{h_team}
-                        <span style="color:#94A3B8; margin: 0 8px;">VS</span> 
-                        {get_logo_html(a_team, size=22)}{a_team}
-                    </div>
-                    """
-                    st.markdown(match_header_html, unsafe_allow_html=True)
-                    
-                    opt_home = f"🏠 {h_team} 승"
-                    opt_draw = "🔺 무승부"
-                    opt_away = f"✈️ {a_team} 승"
-                    
-                    choice = st.radio(
-                        label=f"r_fut_{r}_{idx}",
-                        options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
-                        horizontal=True,
-                        key=f"radio_fut_{m_global_idx}",
-                        label_visibility="collapsed"
-                    )
-                    future_preds[m_global_idx] = choice
-                    st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+        if fut_rounds:
+            for r in fut_rounds:
+                with st.expander(f"📌 Round {r} 잔여 경기", expanded=True):
+                    r_matches = [m for m in remaining_matches if m["R"] == r]
+                    for idx, match in enumerate(r_matches):
+                        m_global_idx = remaining_matches.index(match)
+                        h_team, a_team = match['홈팀'], match['원정팀']
+                        m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
+                        
+                        st.caption(f"📅 {m_date} | 📍 {m_venue}")
+                        
+                        match_header_html = f"""
+                        <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
+                            {get_logo_html(h_team, size=22)}{h_team}
+                            <span style="color:#94A3B8; margin: 0 8px;">VS</span> 
+                            {get_logo_html(a_team, size=22)}{a_team}
+                        </div>
+                        """
+                        st.markdown(match_header_html, unsafe_allow_html=True)
+                        
+                        opt_home = f"🏠 {h_team} 승"
+                        opt_draw = "🔺 무승부"
+                        opt_away = f"✈️ {a_team} 승"
+                        
+                        choice = st.radio(
+                            label=f"r_fut_{r}_{idx}",
+                            options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
+                            horizontal=True,
+                            key=f"radio_fut_{m_global_idx}",
+                            label_visibility="collapsed"
+                        )
+                        future_preds[m_global_idx] = choice
+                        st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+        else:
+            st.write("표시할 잔여 경기가 없습니다.")
 
     past_preds = {}
     with tab_past:
-        st.caption("💡 1라운드부터 원하는 라운드를 선택해 What-If 결과를 변경해 보세요.")
+        st.caption("💡 라운드를 선택해 지난 경기 결과를 변경해 보세요.")
         
         past_rounds = sorted(list(set([m["R"] for m in past_matches])))
         
@@ -472,6 +508,8 @@ with col1:
                 )
                 past_preds[m["id"]] = p_choice
                 st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+        else:
+            st.write("표시할 지난 경기가 없습니다.")
 
 with col2:
     st.subheader("📊 승격 확률 및 순위 예측")
