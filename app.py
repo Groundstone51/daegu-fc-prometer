@@ -95,11 +95,11 @@ def fetch_kleague_official_standings():
     ]
     return pd.DataFrame(default_teams), "🟢 공식 현재 순위 및 1~26라운드 전체 데이터 연동 완료"
 
-# 5. 1~26라운드 전체 경기 내장 데이터베이스
+# 5. 1~26라운드 전체 경기 내장 데이터베이스 (1라운드 화성 vs 대구 배치 완료)
 @st.cache_data(ttl=60)
 def fetch_past_and_future_matches():
     RAW_MATCHES = [
-        # 1라운드 (화성 vs 대구 포함 정상 순서)
+        # 1라운드 (화성 vs 대구 정상 순서)
         {"R": 1, "홈팀": "화성 FC", "homeScore": 2, "원정팀": "대구 FC", "awayScore": 1},
         {"R": 1, "홈팀": "수원 삼성 블루윙즈", "homeScore": 2, "원정팀": "서울 이랜드 FC", "awayScore": 1},
         {"R": 1, "홈팀": "수원 FC", "homeScore": 1, "원정팀": "경남 FC", "awayScore": 1},
@@ -312,11 +312,10 @@ def fetch_past_and_future_matches():
     ]
 
     past_matches = []
-    for idx, m in enumerate(RAW_MATCHES):
+    for m in RAW_MATCHES:
         h_score = m["homeScore"]
         a_score = m["awayScore"]
         result_str = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
-        
         past_matches.append({
             "R": m["R"],
             "홈팀": m["홈팀"],
@@ -327,7 +326,7 @@ def fetch_past_and_future_matches():
             "내용": f"⚽ 최종 스코어 {h_score} : {a_score}"
         })
 
-    # 잔여 경기 예시
+    # 잔여 경기 예시 (27라운드 이후)
     remaining_matches = [
         {"R": 27, "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
         {"R": 27, "홈팀": "부산 아이파크", "원정팀": "서울 이랜드 FC"},
@@ -366,7 +365,7 @@ def calculate_match_probabilities(home_row, away_row, form_weight, home_advantag
     
     return [p_home_adj, p_draw, p_away_adj]
 
-# 7. 몬테카를로 시뮬레이션 (순수 자동 예측)
+# 7. 몬테카를로 시뮬레이션 엔진
 def run_simulation(df_base, future_schedule, form_w, home_adv, total_games=34, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
@@ -417,7 +416,7 @@ def run_simulation(df_base, future_schedule, form_w, home_adv, total_games=34, n
 
     return rank_matrix, teams, team_idx
 
-# 8. UI 구성 (좌측: 설정 및 경기 목록 조회 / 우측: 결과 분석)
+# 8. UI 구성 (좌측: 설정 및 과거 경기 조회 / 우측: 결과 분석)
 col1, col2 = st.columns([1.3, 1.7])
 
 with col1:
