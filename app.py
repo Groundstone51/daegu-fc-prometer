@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import base64
 import os
+import re
 
 # 1. 페이지 설정
 st.set_page_config(
@@ -115,105 +116,114 @@ st.markdown("""
 
 # 4. K리그 공식 웹사이트 순위 크롤링
 @st.cache_data(ttl=300)
-def fetch_kleague_official_standings():
+def fetch_kleague_official_standings(year="2026"):
     url = "https://www.kleague.com/record/team.do"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://www.kleague.com/"
-    }
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        params = {"leagueId": "2", "year": "2026"}
-        res = requests.get(url, headers=headers, params=params, timeout=5)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            rows = soup.select("#table_id tbody tr")
-            teams_data = []
-            for row in rows:
-                cols = row.find_all("td")
-                if len(cols) >= 8:
-                    name = cols[1].text.strip()
-                    pts = int(cols[2].text.strip())
-                    games = int(cols[3].text.strip())
-                    gf = int(cols[5].text.strip())
-                    ga = int(cols[6].text.strip())
-                    teams_data.append({"팀": name, "승점": pts, "경기수": games, "득점": gf, "실점": ga, "최근5경기승점": 8})
-            if teams_data:
-                return pd.DataFrame(teams_data), "🔴 5분 주기 실시간 갱신됨 (K리그 공식 연동)"
-    except Exception:
-        pass
+        res = requests.get(url, headers=headers, params={"leagueId": "2", "year": year}, timeout=5)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        rows = soup.select("#table_id tbody tr")
+        teams_data = []
+        for row in rows:
+            cols = row.find_all("td")
+            if len(cols) >= 8:
+                teams_data.append({
+                    "팀": cols[1].text.strip(),
+                    "승점": int(cols[2].text.strip()),
+                    "경기수": int(cols[3].text.strip()),
+                    "득점": int(cols[5].text.strip()),
+                    "실점": int(cols[6].text.strip()),
+                    "최근5경기승점": 8 # 필요시 최근전적 추가 크롤링
+                })
+        if teams_data:
+            return pd.DataFrame(teams_data), "🔴 실시간 순위 크롤링 연동 완료"
+    except Exception as e:
+        st.error(f"순위 크롤링 실패: {e}")
         
-    default_teams = [
-        {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 43, "실점": 24, "최근5경기승점": 11},
-        {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 42, "실점": 28, "최근5경기승점": 10},
-        {"팀": "서울 이랜드 FC", "승점": 45, "경기수": 25, "득점": 38, "실점": 24, "최근5경기승점": 8},
-        {"팀": "수원 FC", "승점": 44, "경기수": 24, "득점": 40, "실점": 22, "최근5경기승점": 9},
-        {"팀": "화성 FC", "승점": 43, "경기수": 25, "득점": 35, "실점": 21, "최근5경기승점": 7},
-        {"팀": "부산 아이파크", "승점": 38, "경기수": 24, "득점": 31, "실점": 25, "최근5경기승점": 6},
-        {"팀": "충남 아산 FC", "승점": 31, "경기수": 24, "득점": 28, "실점": 27, "최근5경기승점": 5},
-        {"팀": "성남 FC", "승점": 31, "경기수": 24, "득점": 27, "실점": 28, "최근5경기승점": 4},
-        {"팀": "김포 FC", "승점": 31, "경기수": 24, "득점": 25, "실점": 27, "최근5경기승점": 6},
-        {"팀": "경남 FC", "승점": 30, "경기수": 24, "득점": 27, "실점": 27, "최근5경기승점": 5},
-        {"팀": "용인 FC", "승점": 26, "경기수": 24, "득점": 25, "실점": 29, "최근5경기승점": 3},
-        {"팀": "파주 프런티어 FC", "승점": 26, "경기수": 24, "득점": 22, "실점": 28, "최근5경기승점": 4},
-        {"팀": "충북 청주 FC", "승점": 26, "경기수": 25, "득점": 21, "실점": 32, "최근5경기승점": 2},
-        {"팀": "천안 시티 FC", "승점": 22, "경기수": 24, "득점": 21, "실점": 26, "최근5경기승점": 3},
-        {"팀": "안산 그리너스 FC", "승점": 22, "경기수": 25, "득점": 19, "실점": 40, "최근5경기승점": 1},
-        {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34, "최근5경기승점": 2},
-        {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43, "최근5경기승점": 1}
-    ]
-    return pd.DataFrame(default_teams), "🟢 5분 주기 로드 (K리그 공식 백업)"
+    # 크롤링 실패 시 기본 더미 데이터 반환
+    return pd.DataFrame(), "⚠️ 크롤링 실패 (데이터 없음)"
 
-# 5. 지난 경기 및 잔여 경기 로드
+# 5. K리그 공식 웹사이트 경기 일정 및 결과 크롤링
 @st.cache_data(ttl=300)
-def fetch_past_and_future_matches():
-    past_matches = [
-        {
-            "id": "p1", "R": 25, "날짜": "08.24(토) 19:00", "장소": "DGB대구은행파크",
-            "홈팀": "대구 FC", "원정팀": "수원 FC", 
-            "실제홈득점": 1, "실제원정득점": 2, "실제결과": "원정승",
-            "내용": "⚽ 득점: 세징야(대구 34'), 이승우(수원FC 62', 81')<br>🟥 퇴장: 대구 수비수 75' 경고 누적 퇴장<br>🚑 결장: 수원FC 주요 미드필더 햄스트링 부상"
-        },
-        {
-            "id": "p2", "R": 25, "날짜": "08.25(일) 19:30", "장소": "수원월드컵경기장",
-            "홈팀": "수원 삼성 블루윙즈", "원정팀": "서울 이랜드 FC", 
-            "실제홈득점": 2, "실제원정득점": 1, "실제결과": "홈승",
-            "내용": "⚽ 득점: 뮬리치(수원 15', 44'), 오스마르(서울E 88' PK)<br>🟨 경고: 수원 3회, 서울E 2회<br>⭐ 특이사항: 수원 뮬리치 2골 활약"
-        },
-        {
-            "id": "p3", "R": 26, "날짜": "08.31(토) 19:00", "장소": "부산아시아드",
-            "홈팀": "부산 아이파크", "원정팀": "대구 FC", 
-            "실제홈득점": 0, "실제원정득점": 0, "실제결과": "무승부",
-            "내용": "⚽ 득점: 없음 (0:0 무승부)<br>🟨 경고: 대구 4회 (주전 센터백 징계)<br>🚑 부상: 부산 에이스 30분 만에 근육 부상 교체"
-        },
-        {
-            "id": "p4", "R": 26, "날짜": "09.01(일) 19:00", "장소": "화성종합경기타운",
-            "홈팀": "화성 FC", "원정팀": "수원 삼성 블루윙즈", 
-            "실제홈득점": 1, "실제원정득점": 3, "실제결과": "원정승",
-            "내용": "⚽ 득점: 김효기(화성 50'), 카즈키(수원 21'), 뮬리치(수원 70'), 전진우(수원 85')"
-        },
-    ]
+def fetch_crawled_matches(year="2026"):
+    past_matches = []
+    remaining_matches = []
     
-    remaining_matches = [
-        {"R": 27, "날짜": "09.14(토) 16:30", "장소": "수원종합운동장", "홈팀": "수원 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 27, "날짜": "09.15(일) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
-        {"R": 27, "날짜": "09.15(일) 19:00", "장소": "화성종합경기타운", "홈팀": "화성 FC", "원정팀": "부산 아이파크"},
-        {"R": 28, "날짜": "09.21(토) 16:30", "장소": "DGB대구은행파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 28, "날짜": "09.21(토) 19:00", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
-        {"R": 28, "날짜": "09.22(일) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"},
-        {"R": 29, "날짜": "09.28(토) 16:30", "장소": "수원종합운동장", "홈팀": "수원 FC", "원정팀": "서울 이랜드 FC"},
-        {"R": 29, "날짜": "09.29(일) 19:00", "장소": "DGB대구은행파크", "홈팀": "대구 FC", "원정팀": "화성 FC"},
-        {"R": 30, "날짜": "10.05(토) 14:00", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "대구 FC"},
-        {"R": 30, "날짜": "10.06(일) 16:30", "장소": "화성종합경기타운", "홈팀": "화성 FC", "원정팀": "수원 FC"},
-    ]
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # 2월부터 11월까지 순회하며 데이터 수집
+    for month in range(2, 12):
+        url = "https://www.kleague.com/schedule.do"
+        params = {"leagueId": "2", "year": year, "month": f"{month:02d}"}
+        
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=5)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            match_rows = soup.select("tbody tr") 
+            
+            for row in match_rows:
+                cols = row.find_all("td")
+                if len(cols) < 5: 
+                    continue
+                
+                round_text = cols[0].text.strip()
+                match_round = int(re.sub(r'[^0-9]', '', round_text)) if re.sub(r'[^0-9]', '', round_text) else 0
+                
+                date_time = cols[1].text.strip()
+                venue = cols[2].text.strip()
+                
+                home_team = cols[3].text.strip()
+                score_box = cols[4].text.strip()
+                away_team = cols[5].text.strip()
+                
+                if "vs" in score_box.lower() or score_box == "":
+                    remaining_matches.append({
+                        "R": match_round,
+                        "날짜": date_time,
+                        "장소": venue,
+                        "홈팀": home_team,
+                        "원정팀": away_team
+                    })
+                else:
+                    scores = re.findall(r'\d+', score_box)
+                    if len(scores) >= 2:
+                        home_score = int(scores[0])
+                        away_score = int(scores[1])
+                        
+                        if home_score > away_score: result_str = "홈승"
+                        elif home_score == away_score: result_str = "무승부"
+                        else: result_str = "원정승"
+                            
+                        past_matches.append({
+                            "id": f"r{match_round}_{home_team}_{away_team}",
+                            "R": match_round,
+                            "날짜": date_time,
+                            "장소": venue,
+                            "홈팀": home_team,
+                            "원정팀": away_team,
+                            "실제홈득점": home_score,
+                            "실제원정득점": away_score,
+                            "실제결과": result_str,
+                            "내용": "자동 크롤링된 결과입니다."
+                        })
+        except Exception:
+            continue
+
     return past_matches, remaining_matches
 
+# 데이터 로드
 df_standings, status_msg = fetch_kleague_official_standings()
-past_matches, remaining_matches = fetch_past_and_future_matches()
+past_matches, remaining_matches = fetch_crawled_matches()
+
+# 방어 로직: 빈 데이터프레임 방지
+if df_standings.empty or (not past_matches and not remaining_matches):
+    st.warning("⚠️ 데이터 크롤링에 실패했거나 현재 조회 가능한 일정이 없습니다. 사이트 구조 변경 여부를 확인하세요.")
+    st.stop()
 
 # --- 타이틀 및 안내문 ---
 st.title("⚽ K리그2 승격 시뮬레이터")
 st.info("마우스를 올려 지난 경기 변수를 확인하고, What-If 시나리오를 통해 승격 확률을 계산해 보세요!")
-st.caption(f"{status_msg} | 이미지 로고 자동 매핑 연동됨")
+st.caption(f"{status_msg} | 5분 주기 캐싱")
 st.divider()
 
 # 6. 경기별 확률 연산
@@ -238,7 +248,7 @@ def calculate_match_probabilities(home_row, away_row, form_weight, home_advantag
     return [p_home_adj, p_draw, p_away_adj]
 
 # 7. 시뮬레이션 엔진
-def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=32, n_sims=5000):
+def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=36, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
     n_teams = len(teams)
@@ -247,6 +257,9 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
     pts_mod = np.zeros(n_teams)
     
     for m in past_list:
+        if m["홈팀"] not in team_idx or m["원정팀"] not in team_idx:
+            continue
+            
         h_i = team_idx[m["홈팀"]]
         a_i = team_idx[m["원정팀"]]
         
@@ -328,7 +341,6 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
 col1, col2 = st.columns([1.3, 1.7])
 
 with col1:
-    # 승률 분석 가중치 설정 제목 + 물음표 툴팁 HTML
     tooltip_header_html = """
     <div style="display: flex; align-items: center; margin-bottom: 12px;">
         <h3 style="margin: 0; padding: 0; font-size: 1.3rem; font-weight: 700;">⚙️ 승률 분석 가중치 설정</h3>
@@ -364,10 +376,8 @@ with col1:
                     h_team, a_team = match['홈팀'], match['원정팀']
                     m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
                     
-                    # 경기 날짜 및 경기장 정보 표시
                     st.caption(f"📅 {m_date} | 📍 {m_venue}")
                     
-                    # 팀명 및 엠블럼 표시 (백분율 제거)
                     match_header_html = f"""
                     <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
                         {get_logo_html(h_team, size=22)}{h_team}
@@ -395,100 +405,101 @@ with col1:
     with tab_past:
         st.caption("💡 지난 경기를 선택하여 마우스를 올리면 상세 정보를 확인하고 What-If 결과를 변경할 수 있습니다.")
         
-        # 지난 경기 라운드 목록 추출 및 오름차순 정렬 (1라운드부터 순서대로 표시)
         past_rounds = sorted(list(set([m["R"] for m in past_matches])))
-        
-        # 라운드 선택 드롭다운 (1라운드부터 자유롭게 선택 가능)
-        selected_round = st.selectbox(
-            "🔍 조회할 라운드 선택", 
-            options=past_rounds, 
-            format_func=lambda r: f"Round {r} 경기 목록"
-        )
-        
-        # 선택한 라운드의 경기 목록 필터링
-        r_matches = [m for m in past_matches if m["R"] == selected_round]
-        
-        for idx, m in enumerate(r_matches):
-            h_logo = get_logo_html(m['홈팀'], size=22)
-            a_logo = get_logo_html(m['원정팀'], size=22)
-            m_date, m_venue = m.get('날짜', ''), m.get('장소', '')
-            
-            # 경기 일시 및 장소 표시
-            st.caption(f"📅 {m_date} | 📍 {m_venue}")
-            
-            # ⚽ 경기 정보 카드 (툴팁 포함)
-            tooltip_html = f"""
-            <div class="tooltip">
-                <span style="font-size: 1.05rem; font-weight: bold;">
-                    {h_logo} {m['홈팀']} 
-                    <span style="color:#0085FF; margin: 0 4px;">{m['실제홈득점']} : {m['실제원정득점']}</span> 
-                    {a_logo} {m['원정팀']}
-                </span>
-                <span class="tooltiptext">
-                    <b>📝 Round {m['R']} 경기 주요 내용 & 변수</b><br>
-                    {m['내용']}
-                </span>
-            </div>
-            """
-            st.markdown(tooltip_html, unsafe_allow_html=True)
-            
-            opt_h = f"🏠 {m['홈팀']} 승"
-            opt_d = "🔺 무승부"
-            opt_a = f"✈️ {m['원정팀']} 승"
-            
-            default_idx = 0
-            if m['실제결과'] == "무승부": default_idx = 1
-            elif m['실제결과'] == "원정승": default_idx = 2
-            
-            p_choice = st.radio(
-                label=f"r_past_{m['R']}_{idx}",
-                options=[opt_h, opt_d, opt_a],
-                index=default_idx,
-                horizontal=True,
-                key=f"radio_past_{m['id']}",
-                label_visibility="collapsed"
+        if past_rounds:
+            selected_round = st.selectbox(
+                "🔍 조회할 라운드 선택", 
+                options=past_rounds, 
+                format_func=lambda r: f"Round {r} 경기 목록",
+                index=len(past_rounds)-1 # 기본적으로 가장 최신 라운드 선택
             )
-            past_preds[m["id"]] = p_choice
-            st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+            
+            r_matches = [m for m in past_matches if m["R"] == selected_round]
+            
+            for idx, m in enumerate(r_matches):
+                h_logo = get_logo_html(m['홈팀'], size=22)
+                a_logo = get_logo_html(m['원정팀'], size=22)
+                m_date, m_venue = m.get('날짜', ''), m.get('장소', '')
+                
+                st.caption(f"📅 {m_date} | 📍 {m_venue}")
+                
+                tooltip_html = f"""
+                <div class="tooltip">
+                    <span style="font-size: 1.05rem; font-weight: bold;">
+                        {h_logo} {m['홈팀']} 
+                        <span style="color:#0085FF; margin: 0 4px;">{m['실제홈득점']} : {m['실제원정득점']}</span> 
+                        {a_logo} {m['원정팀']}
+                    </span>
+                    <span class="tooltiptext">
+                        <b>📝 Round {m['R']} 경기 주요 내용 & 변수</b><br>
+                        {m['내용']}
+                    </span>
+                </div>
+                """
+                st.markdown(tooltip_html, unsafe_allow_html=True)
+                
+                opt_h = f"🏠 {m['홈팀']} 승"
+                opt_d = "🔺 무승부"
+                opt_a = f"✈️ {m['원정팀']} 승"
+                
+                default_idx = 0
+                if m['실제결과'] == "무승부": default_idx = 1
+                elif m['실제결과'] == "원정승": default_idx = 2
+                
+                p_choice = st.radio(
+                    label=f"r_past_{m['R']}_{idx}",
+                    options=[opt_h, opt_d, opt_a],
+                    index=default_idx,
+                    horizontal=True,
+                    key=f"radio_past_{m['id']}",
+                    label_visibility="collapsed"
+                )
+                past_preds[m["id"]] = p_choice
+                st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
 with col2:
     st.subheader("📊 승격 확률 및 순위 예측")
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 20000, 5000, step=1000)
     
+    # 2026시즌 K리그2 팀 숫자에 맞춰 총 경기 수를 36경기로 가정(팀 수에 따라 조정 필요)
     rank_matrix, teams, team_idx, base_pts = run_what_if_simulation(
-        df_standings, past_matches, past_preds, remaining_matches, future_preds, form_w, home_adv, total_games=32, n_sims=sim_count
+        df_standings, past_matches, past_preds, remaining_matches, future_preds, form_w, home_adv, total_games=36, n_sims=sim_count
     )
     
-    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=1)
-    target_i = team_idx[target_team]
-    target_ranks = rank_matrix[:, target_i]
+    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
     
-    direct_p = (np.sum(target_ranks <= 2) / sim_count) * 100
-    po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
-    
-    m1, m2, m3 = st.columns(3)
-    m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
-    m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
-    m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
-    
-    rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
-    rank_counts = rank_df["예상 최종 순위"].value_counts().reset_index()
-    rank_counts.columns = ["순위", "빈도수"]
-    rank_counts = rank_counts.sort_values("순위")
-    
-    fig = px.bar(
-        rank_counts, 
-        x="순위", 
-        y="빈도수", 
-        text="빈도수", 
-        title=f"<b>{target_team} What-If 시나리오 최종 순위 분포 ({sim_count:,}회)</b>",
-        color_discrete_sequence=["#0085FF"]
-    )
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#E2E8F0")
-    )
-    fig.update_traces(textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
+    if target_team in team_idx:
+        target_i = team_idx[target_team]
+        target_ranks = rank_matrix[:, target_i]
+        
+        direct_p = (np.sum(target_ranks <= 2) / sim_count) * 100
+        po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
+        m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
+        m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
+        
+        rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
+        rank_counts = rank_df["예상 최종 순위"].value_counts().reset_index()
+        rank_counts.columns = ["순위", "빈도수"]
+        rank_counts = rank_counts.sort_values("순위")
+        
+        fig = px.bar(
+            rank_counts, 
+            x="순위", 
+            y="빈도수", 
+            text="빈도수", 
+            title=f"<b>{target_team} What-If 시나리오 최종 순위 분포 ({sim_count:,}회)</b>",
+            color_discrete_sequence=["#0085FF"]
+        )
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(showgrid=False, tickmode='linear', tick0=1, dtick=1),
+            yaxis=dict(showgrid=True, gridcolor="#E2E8F0")
+        )
+        fig.update_traces(textposition='outside')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("선택한 팀의 데이터가 부족하여 시뮬레이션을 실행할 수 없습니다.")
