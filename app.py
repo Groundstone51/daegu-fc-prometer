@@ -1,214 +1,130 @@
-import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import requests
-from bs4 import BeautifulSoup
+import random
+from collections import defaultdict
 
-# 1. 페이지 설정
-st.set_page_config(
-    page_title="2026 대구 FC 승격 시뮬레이터",
-    page_icon="⚽",
-    layout="wide"
-)
+# 1. 팀별 현재 시즌 전적 데이터 (승, 무, 패, 총 득점, 총 실점, 남은 경기 수)
+# ※ 실제 전적 기록을 입력하면 자동으로 승/무/패 확률이 계산됩니다.
+team_records = {
+    "Daegu FC":        {"W": 12, "D": 8,  "L": 10, "gf": 45, "ga": 40, "remaining": 8},
+    "Suwon FC":        {"W": 13, "D": 6,  "L": 11, "gf": 48, "ga": 40, "remaining": 8},
+    "Suwon Samsung":   {"W": 14, "D": 5,  "L": 11, "gf": 46, "ga": 40, "remaining": 8},
+    "Seoul E-Land":    {"W": 15, "D": 4,  "L": 11, "gf": 50, "ga": 40, "remaining": 8},
+    "Hwaseong FC":     {"W": 10, "D": 10, "L": 10, "gf": 39, "ga": 38, "remaining": 8},
+    "Busan IPark":     {"W": 11, "D": 9,  "L": 10, "gf": 42, "ga": 39, "remaining": 8},
+}
 
-# 2. CSS 스타일링
-st.markdown("""
-    <style>
-    .main { background-color: #F4F7FA; }
-    h1 { color: #0085FF !important; font-weight: 800 !important; }
-    [data-testid="stMetric"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        padding: 18px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.03);
-    }
-    [data-testid="stMetricLabel"] { color: #64748B; font-weight: 600; }
-    [data-testid="stMetricValue"] { color: #0085FF; font-weight: 800; }
-    #MainMenu, footer, header {visibility: hidden;}
-    </style>
-""", unsafe_allow_html=True)
+# 2. 직접 지정할 경기 결과 (승무패 및 상세 스코어)
+# 지정하지 않은 경기나 팀은 전적 기반 승률 시뮬레이션이 적용됩니다.
+manual_overrides = {
+    "Daegu FC":        [("W", 2, 0), ("W", 3, 1), ("D", 1, 1), ("W", 2, 1)],
+    "Suwon FC":        [("W", 1, 0), ("D", 2, 2), ("L", 0, 2), ("W", 3, 1)],
+    "Suwon Samsung":   ["W", "W", "W", "D"],
+    "Seoul E-Land":    ["W", "D", "W", "L"],
+    "Hwaseong FC":     ["D", "W", "W", "W"],
+    "Busan IPark":     ["W", "W", "D", "W"],
+}
 
-# 3. 실시간 순위 데이터 로드
-@st.cache_data(ttl=3600)
-def fetch_realtime_standings():
-    url = "https://sports.news.naver.com/kfootball/record/index?category=kleague2"
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
-    try:
-        response = requests.get(url, headers=headers, timeout=3)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        rows = soup.select("#regularGroup_table tr")
-        teams_data = []
-        for row in rows:
-            name = row.select_one(".name").text.strip()
-            pts = int(row.select_one(".pts").text.strip())
-            games = int(row.select_one(".num").text.strip())
-            gf = int(row.select_one(".gf").text.strip())
-            ga = int(row.select_one(".ga").text.strip())
-            teams_data.append({"팀": name, "승점": pts, "경기수": games, "득점": gf, "실점": ga})
-        if teams_data:
-            return pd.DataFrame(teams_data), "🔴 실시간 갱신됨 (네이버 스포츠 연동)"
-    except Exception:
-        pass
+def get_team_probabilities(record):
+    """지나온 경기 전적(W, D, L)을 기반으로 승/무/패 발생 확률을 계산합니다."""
+    total_games = record["W"] + record["D"] + record["L"]
+    if total_games == 0:
+        return [0.333, 0.333, 0.334]
+    
+    p_win = record["W"] / total_games
+    p_draw = record["D"] / total_games
+    p_loss = record["L"] / total_games
+    return [p_win, p_draw, p_loss]
+
+def simulate_match_stats(outcome):
+    """경기 결과에 맞춘 무작위 득점/실점 생성기"""
+    if outcome == 3:    # 승
+        gf = random.choice([1, 2, 3, 4])
+        ga = random.randint(0, gf - 1)
+    elif outcome == 1:  # 무
+        gf = random.choice([0, 1, 2, 3])
+        ga = gf
+    else:              # 패
+        ga = random.choice([1, 2, 3, 4])
+        gf = random.randint(0, ga - 1)
+    return gf, ga
+
+def simulate_season_with_record_weights(records, overrides, target_rank=1, num_simulations=10000):
+    success_counts = defaultdict(int)
+    
+    for _ in range(num_simulations):
+        simulated_data = {}
         
-    default_teams = [
-        {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 43, "실점": 24},
-        {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 42, "실점": 28},
-        {"팀": "서울 이랜드 FC", "승점": 45, "경기수": 25, "득점": 38, "실점": 24},
-        {"팀": "수원 FC", "승점": 44, "경기수": 24, "득점": 40, "실점": 22},
-        {"팀": "화성 FC", "승점": 43, "경기수": 25, "득점": 35, "실점": 21},
-        {"팀": "부산 아이파크", "승점": 38, "경기수": 24, "득점": 31, "실점": 25},
-        {"팀": "충남 아산 FC", "승점": 31, "경기수": 24, "득점": 28, "실점": 27},
-        {"팀": "성남 FC", "승점": 31, "경기수": 24, "득점": 27, "실점": 28},
-        {"팀": "김포 FC", "승점": 31, "경기수": 24, "득점": 25, "실점": 27},
-        {"팀": "경남 FC", "승점": 30, "경기수": 24, "득점": 27, "실점": 27},
-        {"팀": "용인 FC", "승점": 26, "경기수": 24, "득점": 25, "실점": 29},
-        {"팀": "파주 프런티어 FC", "승점": 26, "경기수": 24, "득점": 22, "실점": 28},
-        {"팀": "충북 청주 FC", "승점": 26, "경기수": 25, "득점": 21, "실점": 32},
-        {"팀": "천안 시티 FC", "승점": 22, "경기수": 24, "득점": 21, "실점": 26},
-        {"팀": "안산 그리너스 FC", "승점": 22, "경기수": 25, "득점": 19, "실점": 40},
-        {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34},
-        {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43}
-    ]
-    return pd.DataFrame(default_teams), "🟡 기준 데이터 로드됨"
-
-df_standings, status_msg = fetch_realtime_standings()
-
-st.title("⚽ 2026 대구 FC 승격 가능성 시뮬레이터")
-st.caption(f"K리그2 17개 구단 체제 반영 | {status_msg}")
-st.divider()
-
-daegu_schedule = [
-    {"R": 27, "상대팀": "서울 이랜드 FC", "장소": "원정"},
-    {"R": 28, "상대팀": "수원 삼성 블루윙즈", "장소": "홈"},
-    {"R": 29, "상대팀": "화성 FC", "장소": "홈"},
-    {"R": 30, "상대팀": "전남 드래곤즈", "장소": "원정"},
-    {"R": 31, "상대팀": "수원 FC", "장소": "원정"},
-    {"R": 32, "상대팀": "경남 FC", "장소": "홈"},
-    {"R": 33, "상대팀": "성남 FC", "장소": "홈"},
-    {"R": 34, "상대팀": "충남 아산 FC", "장소": "원정"}
-]
-
-# 주요 경쟁 팀 목록
-rival_teams = ["수원 삼성 블루윙즈", "서울 이랜드 FC", "수원 FC", "화성 FC"]
-
-# 4. 연산 최적화 시뮬레이션 로직 (경쟁팀 가중치 포함)
-def run_fast_simulation(df, schedule, user_predictions, rival_preds, total_games=32, n_sims=3000):
-    teams = df['팀'].values
-    n_teams = len(teams)
-    team_idx = {t: i for i, t in enumerate(teams)}
-    daegu_i = team_idx.get("대구 FC", 1)
-    
-    base_pts = df['승점'].values.astype(np.float64)
-    games_played = df['경기수'].values.copy()
-    
-    pts_sim = np.tile(base_pts, (n_sims, 1))
-    
-    # 대구 FC 경기 결과 반영
-    for idx, match in enumerate(schedule):
-        opp_i = team_idx.get(match["상대팀"])
-        choice = user_predictions[idx]
-        
-        if choice == "승리 ⭕":
-            res = np.full(n_sims, 3)
-        elif choice == "무승부 🔺":
-            res = np.full(n_sims, 1)
-        elif choice == "패배 ❌":
-            res = np.full(n_sims, 0)
-        else:
-            p_win = 0.42 if match["장소"] == "홈" else 0.32
-            res = np.random.choice([3, 1, 0], size=n_sims, p=[p_win, 0.28, 1.0 - p_win - 0.28])
+        for team, rec in records.items():
+            # 전적 바탕 초기 승점, 골득실, 승수 산출
+            pts = (rec["W"] * 3) + (rec["D"] * 1)
+            gf = rec["gf"]
+            gd = rec["gf"] - rec["ga"]
+            wins = rec["W"]
+            remaining_games = rec["remaining"]
             
-        pts_sim[:, daegu_i] += res
-        games_played[daegu_i] += 1
-        
-        if opp_i is not None:
-            opp_res = np.where(res == 3, 0, np.where(res == 1, 1, 3))
-            pts_sim[:, opp_i] += opp_res
-            games_played[opp_i] += 1
-
-    # 경쟁 구단 승점 예측치 반영 및 잔여 경기 시뮬레이션
-    for i in range(n_teams):
-        t_name = teams[i]
-        if i == daegu_i:
-            continue
-            
-        rem = total_games - games_played[i]
-        if rem > 0:
-            # 사용자가 설정한 경쟁팀 경기 성향 보정
-            if t_name in rival_preds:
-                trend = rival_preds[t_name]
-                if trend == "상승세 (승률 60%)":
-                    p = [0.60, 0.25, 0.15]
-                elif trend == "부진 (승률 20%)":
-                    p = [0.20, 0.30, 0.50]
-                else:
-                    p = [0.35, 0.28, 0.37]
-            else:
-                p = [0.35, 0.28, 0.37]
+            # 1) 수동 입력 경기 반영
+            if team in overrides:
+                for match in overrides[team]:
+                    if isinstance(match, tuple):
+                        res, m_gf, m_ga = match
+                    else:
+                        res = match
+                        m_gf, m_ga = (2, 0) if res == "W" else ((1, 1) if res == "D" else (0, 2))
+                    
+                    if res == "W":
+                        pts += 3
+                        wins += 1
+                    elif res == "D":
+                        pts += 1
+                    
+                    gf += m_gf
+                    gd += (m_gf - m_ga)
                 
-            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, rem), p=p).sum(axis=1)
-            pts_sim[:, i] += sim_adds
+                remaining_games = max(0, remaining_games - len(overrides[team]))
+            
+            # 2) 전적 기반 승/무/패 확률 산출 후 남은 경기 시뮬레이션
+            win_p, draw_p, loss_p = get_team_probabilities(rec)
+            
+            for _ in range(remaining_games):
+                # 전적 기반 가중치로 승(3점), 무(1점), 패(0점) 추첨
+                outcome = random.choices([3, 1, 0], weights=[win_p, draw_p, loss_p])[0]
+                m_gf, m_ga = simulate_match_stats(outcome)
+                
+                pts += outcome
+                if outcome == 3:
+                    wins += 1
+                gf += m_gf
+                gd += (m_gf - m_ga)
+                
+            simulated_data[team] = {
+                "points": pts,
+                "goals_for": gf,
+                "goal_diff": gd,
+                "wins": wins
+            }
+            
+        # 3) K리그 동률 순위 결정 (승점 -> 다득점 -> 골득실 -> 다승)
+        sorted_teams = sorted(
+            simulated_data.items(),
+            key=lambda x: (
+                x[1]["points"],
+                x[1]["goals_for"],
+                x[1]["goal_diff"],
+                x[1]["wins"]
+            ),
+            reverse=True
+        )
+        
+        for rank, (team, _) in enumerate(sorted_teams, start=1):
+            if rank <= target_rank:
+                success_counts[team] += 1
+                
+    # 결과 출력
+    print(f"=== 전적 기반 승률 반영 시뮬레이션 ({num_simulations:,}회 실행 / 목표: {target_rank}위 이내) ===")
+    for team, rec in records.items():
+        total = rec["W"] + rec["D"] + rec["L"]
+        win_rate = (rec["W"] / total * 100) if total > 0 else 0
+        prob = (success_counts[team] / num_simulations) * 100
+        print(f"- {team:<15} (기존승률: {win_rate:.1f}%): {prob:.2f}%")
 
-    # 최종 순위 일괄 계산
-    daegu_pts = pts_sim[:, daegu_i]
-    ranks = (pts_sim > daegu_pts[:, None]).sum(axis=1) + 1
-    
-    direct_cnt = np.sum(ranks <= 2)
-    po_cnt = np.sum((ranks >= 3) & (ranks <= 6))
-    
-    return (direct_cnt / n_sims) * 100, (po_cnt / n_sims) * 100, ranks.tolist()
-
-# 5. UI 및 레이아웃
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.subheader("📋 K리그2 순위표")
-    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=220)
-    
-    st.subheader("🗓️ 대구 FC 경기 입력")
-    user_preds = []
-    for idx, match in enumerate(daegu_schedule):
-        label = f"R{match['R']} vs {match['상대팀']} ({match['장소']})"
-        choice = st.selectbox(label, options=["자동 계산 (확률적 반영)", "승리 ⭕", "무승부 🔺", "패배 ❌"], key=f"match_{idx}")
-        user_preds.append(choice)
-
-    st.subheader("🔥 경쟁 구단 잔여 경기 흐름 설정")
-    rival_preds = {}
-    for team in rival_teams:
-        trend = st.selectbox(f"{team}", options=["보통 (평균 승률)", "상승세 (승률 60%)", "부진 (승률 20%)"], key=f"rival_{team}")
-        rival_preds[team] = trend
-
-with col2:
-    st.subheader("📊 시뮬레이션 결과 및 확률")
-    sim_count = st.slider("시뮬레이션 반복 횟수 설정", 1000, 10000, 3000, step=1000)
-    
-    direct_p, po_p, ranks = run_fast_simulation(df_standings, daegu_schedule, user_preds, rival_preds, total_games=32, n_sims=sim_count)
-    
-    m1, m2, m3 = st.columns(3)
-    m1.metric("자동 승격 (1~2위)", f"{direct_p:.1f}%")
-    m2.metric("PO 진출 (3~6위)", f"{po_p:.1f}%")
-    m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
-    
-    rank_df = pd.DataFrame({"예상 최종 순위": ranks})
-    rank_counts = rank_df["예상 최종 순위"].value_counts().reset_index()
-    rank_counts.columns = ["순위", "빈도수"]
-    rank_counts = rank_counts.sort_values("순위")
-    
-    fig = px.bar(
-        rank_counts, 
-        x="순위", 
-        y="빈도수", 
-        text="빈도수", 
-        title="<b>대구 FC 최종 순위 분포 (몬테카를로 분석)</b>",
-        color_discrete_sequence=["#0085FF"]
-    )
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="#E2E8F0")
-    )
-    fig.update_traces(textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
+# 시뮬레이션 실행 (target_rank=1 : 1위 직행)
+simulate_season_with_record_weights(team_records, manual_overrides, target_rank=1, num_simulations=10000)
