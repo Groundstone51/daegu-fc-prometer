@@ -213,7 +213,7 @@ with col1:
 
 with col2:
     st.subheader(f"📊 {my_team} 베이지안 승격 예측 리포트")
-    sim_count = st.slider("몬테카를로 시뮬레이션 회수", 1000, 10000, 5000, step=1000)
+    sim_count = st.slider("시뮬레이션 회수", 1000, 10000, 2500, step=100)
     
     # 튜플 기반 속도 최적화 캡처
     past_choices_tuple = tuple(sorted(past_choices.items()))
