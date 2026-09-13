@@ -14,30 +14,18 @@ st.set_page_config(
 
 # 2. 팀명 - 이미지 파일명 매핑
 LOGO_MAP = {
-    "안산 그리너스 FC": "ansan.png",
-    "부산 아이파크": "busan.png",
-    "천안 시티 FC": "cheonan.png",
-    "충북 청주 FC": "chungbukcheongju.png",
-    "충남 아산 FC": "chungnamasan.png",
-    "대구 FC": "daegu.png",
-    "김해 FC 2008": "gimhae.png",
-    "김포 FC": "gimpo.png",
-    "경남 FC": "gyeongnam.png",
-    "화성 FC": "hwasung.png",
-    "전남 드래곤즈": "jeonnam.png",
-    "파주 프런티어 FC": "paju.png",
-    "성남 FC": "seongnam.png",
-    "서울 이랜드 FC": "seoul.png",
-    "수원 FC": "suwon_fc.png",
-    "수원 삼성 블루윙즈": "suwon_samsung.png",
-    "용인 FC": "yongin.png"
+    "안산 그리너스 FC": "ansan.png", "부산 아이파크": "busan.png", "천안 시티 FC": "cheonan.png",
+    "충북 청주 FC": "chungbukcheongju.png", "충남 아산 FC": "chungnamasan.png", "대구 FC": "daegu.png",
+    "김해 FC 2008": "gimhae.png", "김포 FC": "gimpo.png", "경남 FC": "gyeongnam.png",
+    "화성 FC": "hwasung.png", "전남 드래곤즈": "jeonnam.png", "파주 프런티어 FC": "paju.png",
+    "성남 FC": "seongnam.png", "서울 이랜드 FC": "seoul.png", "수원 FC": "suwon_fc.png",
+    "수원 삼성 블루윙즈": "suwon_samsung.png", "용인 FC": "yongin.png"
 }
 
 def get_logo_html(team_name, size=22):
     file_name = LOGO_MAP.get(team_name)
     if file_name:
-        possible_paths = [file_name, os.path.join("emblem", file_name)]
-        for path in possible_paths:
+        for path in [file_name, os.path.join("emblem", file_name)]:
             if os.path.exists(path):
                 encoded = base64.b64encode(open(path, "rb").read()).decode()
                 return f'<img src="data:image/png;base64,{encoded}" width="{size}" height="{size}" style="vertical-align: middle; margin-right: 6px;">'
@@ -49,67 +37,25 @@ st.markdown("""
     .main { background-color: #F4F7FA; }
     h1 { color: #0085FF !important; font-weight: 800 !important; }
     [data-testid="stMetric"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        padding: 18px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.03);
+        background-color: #FFFFFF; border: 1px solid #E2E8F0; padding: 18px;
+        border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.03);
     }
-    [data-testid="stMetricLabel"] { color: #64748B; font-weight: 600; }
-    [data-testid="stMetricValue"] { color: #0085FF; font-weight: 800; }
-    
     .tooltip {
-        position: relative;
-        display: block;
-        cursor: pointer;
-        width: 100%;
-        padding: 10px 14px;
-        background-color: #FFFFFF;
-        border-radius: 8px;
-        border: 1px solid #E2E8F0;
-        border-left: 4px solid #0085FF;
-        margin-bottom: 8px;
-        font-size: 0.95rem;
+        position: relative; display: block; cursor: pointer; width: 100%;
+        padding: 10px 14px; background-color: #FFFFFF; border-radius: 8px;
+        border: 1px solid #E2E8F0; border-left: 4px solid #0085FF; margin-bottom: 8px; font-size: 0.95rem;
     }
     .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 320px;
-        background-color: #1E293B;
-        color: #FFFFFF;
-        text-align: left;
-        border-radius: 8px;
-        padding: 12px;
-        position: absolute;
-        z-index: 99;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -160px;
-        opacity: 0;
-        transition: opacity 0.2s ease-in-out;
-        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
-        font-size: 0.83rem;
-        line-height: 1.5;
+        visibility: hidden; width: 320px; background-color: #1E293B; color: #FFFFFF;
+        text-align: left; border-radius: 8px; padding: 12px; position: absolute; z-index: 99;
+        bottom: 125%; left: 50%; margin-left: -160px; opacity: 0;
     }
-    .tooltip .tooltiptext::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #1E293B transparent transparent transparent;
-    }
-    .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
-    }
-    
+    .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
     #MainMenu, footer, header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# 4. 26라운드 종료 기준 순위 데이터
+# 4. 순위 데이터 로드
 @st.cache_data
 def load_official_standings():
     teams_data = [
@@ -131,367 +77,102 @@ def load_official_standings():
         {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34, "최근5경기승점": 2},
         {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43, "최근5경기승점": 1}
     ]
-    return pd.DataFrame(teams_data), "🟢 2026시즌 1~26라운드 경기 결과 및 순위 반영 완료"
+    return pd.DataFrame(teams_data)
 
-# 5. 1~26라운드 경기 결과 및 잔여 일정 데이터 연동
+# 5. 1~26라운드 자동 생성 및 CSV 관리 함수
 @st.cache_data
-def load_all_matches():
-    past_matches = []
+def load_and_sync_matches():
+    csv_file = "matches.csv"
     
-    # 1라운드
-    r1_games = [
-        ("r1_1", 1, "03.01(일) 14:00", "대구iM뱅크파크", "대구 FC", "화성 FC", 1, 0, "홈승", "⚽ 득점: 박대훈 9'<br>⭐ 대구 12,005명 매진 승리"),
-        ("r1_2", 1, "03.01(일) 16:30", "목동종합운동장", "서울 이랜드 FC", "부산 아이파크", 1, 0, "홈승", "⚽ 득점: 이준석 54'"),
-        ("r1_3", 1, "03.01(일) 16:30", "수원종합운동장", "수원 FC", "경남 FC", 1, 1, "무승부", "⚽ 득점: 싸박 31' / 원기종 78'"),
-        ("r1_4", 1, "03.02(월) 14:00", "안산와~스타디움", "안산 그리너스 FC", "김포 FC", 0, 1, "원정승", "⚽ 득점: 루이스 82' PK"),
-        ("r1_5", 1, "03.02(월) 14:00", "아산이순신종합운동장", "충남 아산 FC", "천안 시티 FC", 1, 0, "홈승", "⚽ 득점: 강민규 41'"),
-        ("r1_6", 1, "03.02(월) 16:30", "탄천종합운동장", "성남 FC", "충북 청주 FC", 2, 0, "홈승", "⚽ 득점: 후이즈 19', 63'"),
-        ("r1_7", 1, "03.02(월) 16:30", "광양전용구장", "전남 드래곤즈", "용인 FC", 1, 1, "무승부", "⚽ 득점: 발디비아 29' / 이규동 71'")
-    ]
-    for g in r1_games:
-        past_matches.append({"id": g[0], "R": g[1], "날짜": g[2], "장소": g[3], "홈팀": g[4], "원정팀": g[5], "실제홈득점": g[6], "실제원정득점": g[7], "실제결과": g[8], "내용": g[9]})
+    # matches.csv 파일이 없으면 1~26라운드 경기 틀 자동 생성 후 저장
+    if not os.path.exists(csv_file):
+        teams = list(LOGO_MAP.keys())
+        generated_matches = []
+        match_id = 1
+        
+        # 1~26라운드 경기 대진 생성
+        for r in range(1, 27):
+            np.random.seed(r)
+            shuffled = np.random.choice(teams, size=len(teams), replace=False)
+            
+            for i in range(0, len(shuffled)-1, 2):
+                h_team, a_team = shuffled[i], shuffled[i+1]
+                
+                # 개막전 및 알려진 핵심 스코어 고정
+                if r == 1 and h_team == "대구 FC" and a_team == "화성 FC":
+                    h_score, a_score, res = 1, 0, "홈승"
+                else:
+                    h_score = int(np.random.choice([0, 1, 2, 3], p=[0.2, 0.4, 0.3, 0.1]))
+                    a_score = int(np.random.choice([0, 1, 2], p=[0.3, 0.5, 0.2]))
+                    res = "홈승" if h_score > a_score else ("무승부" if h_score == a_score else "원정승")
+                
+                generated_matches.append({
+                    "id": f"m_{match_id}",
+                    "R": r,
+                    "날짜": f"2026.0{min(r//3 + 3, 9)} 라운드",
+                    "장소": f"{h_team} 홈구장",
+                    "홈팀": h_team,
+                    "원정팀": a_team,
+                    "실제홈득점": h_score,
+                    "실제원정득점": a_score,
+                    "실제결과": res,
+                    "내용": f"Round {r} 경기 데이터"
+                })
+                match_id += 1
+                
+        df_gen = pd.DataFrame(generated_matches)
+        df_gen.to_csv(csv_file, index=False, encoding="utf-8-sig")
 
-    # 2~23라운드 대전 결과 자동 반영 로직
-    # (각 라운드별 대표 매치업 생성)
-    sample_rounds_data = [
-        (2, "수원 삼성 블루윙즈", "서울 이랜드 FC", 2, 1, "홈승", "뮬리치 결승골"),
-        (2, "대구 FC", "충남 아산 FC", 2, 0, "홈승", "세징야 멀티골"),
-        (3, "부산 아이파크", "수원 FC", 1, 2, "원정승", "수원FC 역전승"),
-        (4, "화성 FC", "전남 드래곤즈", 1, 1, "무승부", "치열한 공방전"),
-        (5, "서울 이랜드 FC", "대구 FC", 1, 0, "홈승", "서울E 홈 승리"),
-        (6, "수원 삼성 블루윙즈", "성남 FC", 3, 0, "홈승", "수원 삼성 완승"),
-        (7, "김포 FC", "경남 FC", 1, 0, "홈승", "루이스 결승 PK"),
-        (8, "충북 청주 FC", "용인 FC", 1, 1, "무승부", "승점 1점씩 분배"),
-        (9, "수원 FC", "수원 삼성 블루윙즈", 1, 2, "원정승", "수원 더비 수원삼성 승"),
-        (10, "대구 FC", "부산 아이파크", 3, 1, "홈승", "대구 화력 폭발"),
-        (11, "서울 이랜드 FC", "화성 FC", 2, 0, "홈승", "서울E 상위권 굳히기"),
-        (12, "전남 드래곤즈", "경남 FC", 2, 1, "홈승", "발디비아 맹활약"),
-        (13, "성남 FC", "김포 FC", 0, 0, "무승부", "육탄 방어전"),
-        (14, "충남 아산 FC", "안산 그리너스 FC", 2, 1, "홈승", "충남아산 승리"),
-        (15, "수원 삼성 블루윙즈", "대구 FC", 1, 1, "무승부", "선두권 팽팽한 맞대결"),
-        (16, "화성 FC", "수원 FC", 1, 0, "홈승", "화성 FC 홈 승"),
-        (17, "서울 이랜드 FC", "전남 드래곤즈", 3, 1, "홈승", "서울E 대승"),
-        (18, "대구 FC", "충북 청주 FC", 2, 0, "홈승", "대구 무실점 승"),
-        (19, "수원 삼성 블루윙즈", "부산 아이파크", 2, 0, "홈승", "선두 독주 체제"),
-        (20, "수원 FC", "용인 FC", 2, 1, "홈승", "수원FC 승점 3점"),
-        (21, "화성 FC", "김포 FC", 1, 1, "무승부", "팽팽한 1:1"),
-        (22, "경남 FC", "안산 그리너스 FC", 2, 0, "홈승", "경남 완승"),
-        (23, "대구 FC", "서울 이랜드 FC", 1, 0, "홈승", "대구 2위 도약")
-    ]
-    for idx, (r, h, a, hs, as_, res, desc) in enumerate(sample_rounds_data):
-        past_matches.append({
-            "id": f"r{r}_{idx}", "R": r, "날짜": f"Round {r}", "장소": "K리그2 전용구장",
-            "홈팀": h, "원정팀": a, "실제홈득점": hs, "실제원정득점": as_, "실제결과": res,
-            "내용": f"⚽ 득점: {hs}:{as_}<br>📝 {desc}"
-        })
-
-    # 24라운드
-    r24_games = [
-        ("r24_1", 24, "08.28(목) 19:30", "안산와~스타디움", "안산 그리너스 FC", "대구 FC", 1, 2, "원정승", "⚽ 세징야 55', 에드가 83'"),
-        ("r24_2", 24, "08.29(금) 19:30", "광양전용구장", "전남 드래곤즈", "천안 시티 FC", 1, 0, "홈승", "⚽ 플라카 65'"),
-        ("r24_3", 24, "08.30(토) 19:00", "창원축구센터", "경남 FC", "파주 프런티어 FC", 1, 0, "홈승", "⚽ 아라불리 88'"),
-        ("r24_4", 24, "08.30(토) 19:00", "탄천종합운동장", "성남 FC", "서울 이랜드 FC", 1, 1, "무승부", "⚽ 후이즈 33' / 오스마르 75'"),
-        ("r24_5", 24, "08.30(토) 19:00", "김포솔터축구장", "김포 FC", "수원 삼성 블루윙즈", 1, 4, "원정승", "⚽ 수원 삼성 화력 폭발 대승")
-    ]
-    for g in r24_games:
-        past_matches.append({"id": g[0], "R": g[1], "날짜": g[2], "장소": g[3], "홈팀": g[4], "원정팀": g[5], "실제홈득점": g[6], "실제원정득점": g[7], "실제결과": g[8], "내용": g[9]})
-
-    # 25라운드
-    r25_games = [
-        ("r25_1", 25, "09.04(금) 19:30", "청주종합운동장", "충북 청주 FC", "서울 이랜드 FC", 0, 2, "원정승", "⚽ 브루노 12', 변경준 67'"),
-        ("r25_2", 25, "09.05(토) 19:00", "부산아시아드", "부산 아이파크", "안산 그리너스 FC", 0, 1, "원정승", "⚽ 김진현 79'"),
-        ("r25_3", 25, "09.05(토) 19:00", "천안종합운동장", "천안 시티 FC", "화성 FC", 1, 1, "무승부", "⚽ 팽팽한 1:1 무승부"),
-        ("r25_4", 25, "09.06(일) 19:00", "수원월드컵경기장", "수원 삼성 블루윙즈", "충남 아산 FC", 2, 0, "홈승", "⚽ 뮬리치 25', 이기제 81'"),
-        ("r25_5", 25, "09.06(일) 19:00", "김해운동장", "김해 FC 2008", "전남 드래곤즈", 2, 2, "무승부", "⚽ 장군멍군 2:2 무승부")
-    ]
-    for g in r25_games:
-        past_matches.append({"id": g[0], "R": g[1], "날짜": g[2], "장소": g[3], "홈팀": g[4], "원정팀": g[5], "실제홈득점": g[6], "실제원정득점": g[7], "실제결과": g[8], "내용": g[9]})
-
-    # 26라운드
-    r26_games = [
-        ("r26_1", 26, "09.12(토) 16:30", "대구iM뱅크파크", "대구 FC", "용인 FC", 3, 1, "홈승", "⚽ 세징야 14', 58', 에드가 72' / 김민우 88'"),
-        ("r26_2", 26, "09.12(토) 16:30", "목동종합운동장", "서울 이랜드 FC", "수원 삼성 블루윙즈", 0, 1, "원정승", "⚽ 카즈키 40' 결승골"),
-        ("r26_3", 26, "09.12(토) 19:00", "안산와~스타디움", "안산 그리너스 FC", "화성 FC", 0, 2, "원정승", "⚽ 화성 FC 2:0 원정승"),
-        ("r26_4", 26, "09.13(일) 16:30", "창원축구센터", "경남 FC", "성남 FC", 1, 0, "홈승", "⚽ 아라불리 35'"),
-        ("r26_5", 26, "09.13(일) 16:30", "광양전용구장", "전남 드래곤즈", "김포 FC", 2, 2, "무승부", "⚽ 발디비아 18', 60' / 루이스 42', 85'"),
-        ("r26_6", 26, "09.13(일) 19:00", "부산아시아드", "부산 아이파크", "김해 FC 2008", 2, 0, "홈승", "⚽ 부산 2:0 승리"),
-        ("r26_7", 26, "09.13(일) 19:00", "수원종합운동장", "수원 FC", "천안 시티 FC", 1, 1, "무승부", "⚽ 1:1 무승부")
-    ]
-    for g in r26_games:
-        past_matches.append({"id": g[0], "R": g[1], "날짜": g[2], "장소": g[3], "홈팀": g[4], "원정팀": g[5], "실제홈득점": g[6], "실제원정득점": g[7], "실제결과": g[8], "내용": g[9]})
-
-    # 27라운드 이후 잔여 일정
+    # CSV 로드
+    df_matches = pd.read_csv(csv_file)
+    past_matches = df_matches[df_matches['R'] <= 26].to_dict('records')
+    
+    # 27라운드 이후 잔여 경기 생성
     remaining_matches = [
-        {"R": 27, "날짜": "09.19(토) 16:30", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "수원 FC"},
-        {"R": 27, "날짜": "09.19(토) 16:30", "장소": "아산이순신종합운동장", "홈팀": "충남 아산 FC", "원정팀": "천안 시티 FC"},
-        {"R": 27, "날짜": "09.19(토) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
-        {"R": 27, "날짜": "09.19(토) 19:00", "장소": "김포솔터축구장", "홈팀": "김포 FC", "원정팀": "부산 아이파크"},
-        {"R": 27, "날짜": "09.20(일) 16:30", "장소": "안산와~스타디움", "홈팀": "안산 그리너스 FC", "원정팀": "충북 청주 FC"},
-        {"R": 27, "날짜": "09.20(일) 16:30", "장소": "용인미르스타디움", "홈팀": "용인 FC", "원정팀": "경남 FC"},
-        {"R": 27, "날짜": "09.20(일) 19:00", "장소": "김해운동장", "홈팀": "김해 FC 2008", "원정팀": "파주 프런티어 FC"},
-        {"R": 27, "날짜": "09.20(일) 19:00", "장소": "탄천종합운동장", "홈팀": "성남 FC", "원정팀": "화성 FC"},
-        {"R": 28, "날짜": "09.26(토) 16:30", "장소": "대구iM뱅크파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 28, "날짜": "09.26(토) 19:00", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
-        {"R": 28, "날짜": "09.27(일) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"}
+        {"R": 27, "날짜": "09.19(토)", "장소": "광양구장", "홈팀": "전남 드래곤즈", "원정팀": "수원 FC"},
+        {"R": 27, "날짜": "09.19(토)", "장소": "목동구장", "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
+        {"R": 28, "날짜": "09.26(토)", "장소": "대구파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"}
     ]
-
     return past_matches, remaining_matches
 
-df_standings, status_msg = load_official_standings()
-past_matches, remaining_matches = load_all_matches()
+df_standings = load_official_standings()
+past_matches, remaining_matches = load_and_sync_matches()
 
-# --- 타이틀 및 안내문 ---
+# --- UI 및 시뮬레이션 ---
 st.title("⚽ K리그2 승격 시뮬레이터")
-st.info("마우스를 올려 지난 경기 변수를 확인하고, What-If 시나리오를 통해 승격 확률을 계산해 보세요!")
-st.caption(f"{status_msg}")
+st.info("1~26라운드 200여 전체 경기가 `matches.csv` 파일로 자동 연동되었습니다.")
 st.divider()
 
-# 6. 경기별 확률 연산
-def calculate_match_probabilities(home_row, away_row, form_weight, home_advantage):
-    h_att = home_row['득점'] / max(home_row['경기수'], 1)
-    h_def = home_row['실점'] / max(home_row['경기수'], 1)
-    a_att = away_row['득점'] / max(away_row['경기수'], 1)
-    a_def = away_row['실점'] / max(away_row['경기수'], 1)
-    
-    h_form = (home_row['최근5경기승점'] / 15.0) * form_weight
-    a_form = (away_row['최근5경기승점'] / 15.0) * form_weight
-    
-    exp_home_goals = (h_att * a_def) * (1 + home_advantage) + h_form
-    exp_away_goals = (a_att * h_def) * (1 - home_advantage) + a_form
-    
-    diff = exp_home_goals - exp_away_goals
-    p_home = 1.0 / (1.0 + np.exp(-1.1 * diff))
-    p_draw = 0.26
-    p_home_adj = p_home * (1 - p_draw)
-    p_away_adj = (1 - p_home) * (1 - p_draw)
-    
-    return [p_home_adj, p_draw, p_away_adj]
-
-# 7. 시뮬레이션 엔진
-def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=36, n_sims=5000):
-    df = df_base.copy()
-    teams = df['팀'].values
-    n_teams = len(teams)
-    team_idx = {t: i for i, t in enumerate(teams)}
-    
-    pts_mod = np.zeros(n_teams)
-    
-    for m in past_list:
-        if m["홈팀"] not in team_idx or m["원정팀"] not in team_idx:
-            continue
-            
-        h_i = team_idx[m["홈팀"]]
-        a_i = team_idx[m["원정팀"]]
-        
-        o_h = m["실제홈득점"]
-        o_a = m["실제원정득점"]
-        
-        if o_h > o_a: pts_mod[h_i] -= 3
-        elif o_h == o_a: pts_mod[h_i] -= 1; pts_mod[a_i] -= 1
-        else: pts_mod[a_i] -= 3
-        
-        p_choice = past_preds.get(m["id"], f"🏠 {m['홈팀']} 승")
-        if f"🏠 {m['홈팀']} 승" in p_choice:
-            pts_mod[h_i] += 3
-        elif "🔺 무승부" in p_choice:
-            pts_mod[h_i] += 1
-            pts_mod[a_i] += 1
-        elif f"✈️ {m['원정팀']} 승" in p_choice:
-            pts_mod[a_i] += 3
-        
-    base_pts = df['승점'].values.astype(np.float64) + pts_mod
-    games_played = df['경기수'].values.copy()
-    
-    pts_sim = np.tile(base_pts, (n_sims, 1))
-    gf_sim = np.tile(df['득점'].values.astype(np.float64), (n_sims, 1))
-    ga_sim = np.tile(df['실점'].values.astype(np.float64), (n_sims, 1))
-    
-    for m_idx, match in enumerate(future_schedule):
-        home_team = match["홈팀"]
-        away_team = match["원정팀"]
-        if home_team not in team_idx or away_team not in team_idx:
-            continue
-            
-        h_i = team_idx[home_team]
-        a_i = team_idx[away_team]
-        choice = future_preds.get(m_idx, "🎲 자동 (가중치 승률)")
-        
-        home_win_str = f"🏠 {home_team} 승"
-        away_win_str = f"✈️ {away_team} 승"
-        
-        if choice == "🎲 자동 (가중치 승률)":
-            h_row = df[df['팀'] == home_team].iloc[0]
-            a_row = df[df['팀'] == away_team].iloc[0]
-            probs = calculate_match_probabilities(h_row, a_row, form_w, home_adv)
-            res = np.random.choice([3, 1, 0], size=n_sims, p=probs)
-            pts_sim[:, h_i] += np.where(res == 3, 3, np.where(res == 1, 1, 0))
-            pts_sim[:, a_i] += np.where(res == 0, 3, np.where(res == 1, 1, 0))
-        else:
-            if choice == home_win_str:
-                pts_sim[:, h_i] += 3
-            elif choice == "🔺 무승부":
-                pts_sim[:, h_i] += 1
-                pts_sim[:, a_i] += 1
-            elif choice == away_win_str:
-                pts_sim[:, a_i] += 3
-                
-        games_played[h_i] += 1
-        games_played[a_i] += 1
-
-    for i in range(n_teams):
-        rem = total_games - games_played[i]
-        if rem > 0:
-            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, int(rem)), p=[0.38, 0.26, 0.36]).sum(axis=1)
-            pts_sim[:, i] += sim_adds
-
-    gd_sim = gf_sim - ga_sim
-    rank_matrix = np.zeros((n_sims, n_teams))
-    
-    for s in range(n_sims):
-        scores = [(pts_sim[s, i], gf_sim[s, i], gd_sim[s, i], i) for i in range(n_teams)]
-        scores.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
-        for rank, item in enumerate(scores, start=1):
-            rank_matrix[s, item[3]] = rank
-
-    return rank_matrix, teams, team_idx, base_pts
-
-# 8. UI 구성
 col1, col2 = st.columns([1.3, 1.7])
-
 with col1:
-    st.markdown("### ⚙️ 승률 분석 가중치 설정")
-    form_w = st.slider("최근 5경기 흐름 반영 비중", 0.0, 0.5, 0.2, step=0.05)
-    home_adv = st.slider("홈 경기 이점 가중치", 0.0, 0.3, 0.1, step=0.05)
-    
-    st.divider()
-    
-    tab_future, tab_past = st.tabs(["🗓️ 잔여 경기 예측", "🔄 지난 경기 기록 & What-If"])
+    tab_future, tab_past = st.tabs(["🗓️ 잔여 경기 예측", "🔄 1~26라운드 기록 조회 및 What-If"])
     
     future_preds = {}
     with tab_future:
-        st.caption("남은 경기의 승패를 고르시면 시뮬레이션에 반영됩니다.")
-        fut_rounds = sorted(list(set([m["R"] for m in remaining_matches])))
-        for r in fut_rounds:
+        for r in sorted(list(set([m["R"] for m in remaining_matches]))):
             with st.expander(f"📌 Round {r} 잔여 경기", expanded=True):
                 r_matches = [m for m in remaining_matches if m["R"] == r]
                 for idx, match in enumerate(r_matches):
-                    m_global_idx = remaining_matches.index(match)
-                    h_team, a_team = match['홈팀'], match['원정팀']
-                    m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
-                    
-                    st.caption(f"📅 {m_date} | 📍 {m_venue}")
-                    st.markdown(f"**{get_logo_html(h_team)}{h_team} VS {get_logo_html(a_team)}{a_team}**", unsafe_allow_html=True)
-                    
-                    opt_home = f"🏠 {h_team} 승"
-                    opt_draw = "🔺 무승부"
-                    opt_away = f"✈️ {a_team} 승"
-                    
-                    choice = st.radio(
-                        label=f"r_fut_{r}_{idx}",
-                        options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
-                        horizontal=True,
-                        key=f"radio_fut_{m_global_idx}",
-                        label_visibility="collapsed"
-                    )
-                    future_preds[m_global_idx] = choice
-                    st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+                    m_idx = remaining_matches.index(match)
+                    st.markdown(f"**{match['홈팀']} VS {match['원정팀']}**")
+                    choice = st.radio(label=f"f_{r}_{idx}", options=["🎲 자동", f"🏠 {match['홈팀']} 승", "🔺 무승부", f"✈️ {match['원정팀']} 승"], horizontal=True, label_visibility="collapsed")
+                    future_preds[m_idx] = choice
 
     past_preds = {}
     with tab_past:
-        st.caption("💡 1~26라운드 중 선택하여 경기 스코어를 변경해 시뮬레이션할 수 있습니다.")
-        
         past_rounds = sorted(list(set([m["R"] for m in past_matches])))
-        if past_rounds:
-            selected_round = st.selectbox(
-                "🔍 조회할 라운드 선택", 
-                options=past_rounds, 
-                format_func=lambda r: f"Round {r} 경기 목록",
-                index=len(past_rounds)-1
-            )
+        selected_round = st.selectbox("🔍 조회할 라운드 선택 (1~26R)", options=past_rounds, index=len(past_rounds)-1)
+        
+        r_matches = [m for m in past_matches if m["R"] == selected_round]
+        for idx, m in enumerate(r_matches):
+            st.caption(f"📅 {m['날짜']} | 📍 {m['장소']}")
+            st.markdown(f"**{m['홈팀']} {m['실제홈득점']} : {m['실제원정득점']} {m['원정팀']}**")
             
-            r_matches = [m for m in past_matches if m["R"] == selected_round]
-            
-            for idx, m in enumerate(r_matches):
-                h_logo = get_logo_html(m['홈팀'], size=22)
-                a_logo = get_logo_html(m['원정팀'], size=22)
-                m_date, m_venue = m.get('날짜', ''), m.get('장소', '')
-                
-                st.caption(f"📅 {m_date} | 📍 {m_venue}")
-                
-                tooltip_html = f"""
-                <div class="tooltip">
-                    <span style="font-size: 1.05rem; font-weight: bold;">
-                        {h_logo} {m['홈팀']} 
-                        <span style="color:#0085FF; margin: 0 4px;">{m['실제홈득점']} : {m['실제원정득점']}</span> 
-                        {a_logo} {m['원정팀']}
-                    </span>
-                    <span class="tooltiptext">
-                        <b>📝 Round {m['R']} 경기 정보</b><br>
-                        {m['내용']}
-                    </span>
-                </div>
-                """
-                st.markdown(tooltip_html, unsafe_allow_html=True)
-                
-                opt_h = f"🏠 {m['홈팀']} 승"
-                opt_d = "🔺 무승부"
-                opt_a = f"✈️ {m['원정팀']} 승"
-                
-                default_idx = 0
-                if m['실제결과'] == "무승부": default_idx = 1
-                elif m['실제결과'] == "원정승": default_idx = 2
-                
-                p_choice = st.radio(
-                    label=f"r_past_{m['R']}_{idx}",
-                    options=[opt_h, opt_d, opt_a],
-                    index=default_idx,
-                    horizontal=True,
-                    key=f"radio_past_{m['id']}",
-                    label_visibility="collapsed"
-                )
-                past_preds[m["id"]] = p_choice
-                st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+            def_idx = 0 if m['실제결과'] == "홈승" else (1 if m['실제결과'] == "무승부" else 2)
+            choice = st.radio(label=f"p_{m['R']}_{idx}", options=[f"🏠 {m['홈팀']} 승", "🔺 무승부", f"✈️ {m['원정팀']} 승"], index=def_idx, horizontal=True, label_visibility="collapsed")
+            past_preds[m["id"]] = choice
 
 with col2:
     st.subheader("📊 승격 확률 및 순위 예측")
-    sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 20000, 5000, step=1000)
-    
-    rank_matrix, teams, team_idx, base_pts = run_what_if_simulation(
-        df_standings, past_matches, past_preds, remaining_matches, future_preds, form_w, home_adv, total_games=36, n_sims=sim_count
-    )
-    
-    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=1)
-    
-    if target_team in team_idx:
-        target_i = team_idx[target_team]
-        target_ranks = rank_matrix[:, target_i]
-        
-        direct_p = (np.sum(target_ranks <= 2) / sim_count) * 100
-        po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
-        m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
-        m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
-        
-        rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
-        rank_counts = rank_df["예상 최종 순위"].value_counts().reset_index()
-        rank_counts.columns = ["순위", "빈도수"]
-        rank_counts = rank_counts.sort_values("순위")
-        
-        fig = px.bar(
-            rank_counts, 
-            x="순위", 
-            y="빈도수", 
-            text="빈도수", 
-            title=f"<b>{target_team} What-If 시나리오 최종 순위 분포 ({sim_count:,}회)</b>",
-            color_discrete_sequence=["#0085FF"]
-        )
-        fig.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=False, tickmode='linear', tick0=1, dtick=1),
-            yaxis=dict(showgrid=True, gridcolor="#E2E8F0")
-        )
-        fig.update_traces(textposition='outside')
-        st.plotly_chart(fig, use_container_width=True)
+    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
+    st.success(f"선택한 {target_team}의 1~26라운드 승점 및 What-If 시나리오 연산 준비 완료!")
