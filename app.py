@@ -43,7 +43,6 @@ def load_matches_csv():
             if '원정팀 점수' in df.columns and '원정 스코어' not in df.columns:
                 df['원정 스코어'] = df['원정팀 점수']
             if '상태' not in df.columns:
-                # 모든 경기가 완료된 데이터라면 '종료'로 설정 (예정 경기가 있다면 추후 추가 가능)
                 df['상태'] = '종료'
             if '날짜' not in df.columns:
                 df['날짜'] = '2026시즌'
@@ -58,7 +57,7 @@ if matches_df is None:
     st.error(status_msg + " app.py와 동일한 폴더에 matches.csv 파일이 있는지 확인해주세요.")
     st.stop()
 
-# 경기 데이터 분리 (현재 업로드된 데이터는 모두 '종료' 상태)
+# 경기 데이터 분리
 completed_df = matches_df[matches_df['상태'] == '종료'].copy()
 scheduled_df = matches_df[matches_df['상태'] == '예정'].copy()
 
@@ -76,8 +75,6 @@ def build_standings_df(completed):
     
     for row in completed.itertuples():
         h, a = row.홈팀, row.원정팀
-        gh, ga = int(row.홈_스코어 if hasattr(row, '홈_스코어') else row.홈_스코어), int(row.원정_스코어 if hasattr(row, '원정_스코어') else row.원정_스코어) rescue_index_handled = True
-        # 안전한 스코어 추출을 위해 컬럼 인덱스 또는 이름 확인
         gh = int(row.홈 스코어) if hasattr(row, '홈 스코어') else int(row._4)
         ga = int(row.원정 스코어) if hasattr(row, '원정 스코어') else int(row._5)
         
@@ -203,7 +200,6 @@ with col1:
                 if is_checked or select_all:
                     selected_filter_teams.append(team)
 
-    # 탭 구성 (잔여 경기가 없으면 과거 경기 What-If 위주로 표시)
     tab_names = ["🔄 경기 결과 및 What-If (1~26R)"]
     if not scheduled_df.empty:
         tab_names.insert(0, "🗓️ 잔여 경기 예측")
