@@ -26,7 +26,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. 저장소 내 matches.csv 자동 불러오기
+# 2. 저장소 내 matches.csv 자동 불러오기 및 컬럼 표준화 처리
 @st.cache_data(ttl=600)
 def load_matches_csv():
     possible_paths = [
@@ -35,7 +35,21 @@ def load_matches_csv():
     ]
     for p in possible_paths:
         if os.path.exists(p):
-            return pd.read_csv(p), "🟢 저장소 내 matches.csv 연동 완료"
+            df = pd.read_csv(p)
+            
+            # 사용자 업로드 파일 형식 컬럼 표준화 매핑
+            if '홈팀 점수' in df.columns and '홈 스코어' not in df.columns:
+                df['홈 스코어'] = df['홈팀 점수']
+            if '원정팀 점수' in df.columns and '원정 스코어' not in df.columns:
+                df['원정 스코어'] = df['원정팀 점수']
+            if '상태' not in df.columns:
+                # 모든 경기가 완료된 데이터라면 '종료'로 설정 (예정 경기가 있다면 추후 추가 가능)
+                df['상태'] = '종료'
+            if '날짜' not in df.columns:
+                df['날짜'] = '2026시즌'
+                
+            return df, "🟢 1~26R 경기 결과 matches.csv 연동 완료"
+            
     return None, "🔴 matches.csv 파일을 찾을 수 없습니다."
 
 matches_df, status_msg = load_matches_csv()
@@ -44,16 +58,16 @@ if matches_df is None:
     st.error(status_msg + " app.py와 동일한 폴더에 matches.csv 파일이 있는지 확인해주세요.")
     st.stop()
 
-# 경기 데이터 분리 (종료 1~26R vs 예정 27~34R)
+# 경기 데이터 분리 (현재 업로드된 데이터는 모두 '종료' 상태)
 completed_df = matches_df[matches_df['상태'] == '종료'].copy()
 scheduled_df = matches_df[matches_df['상태'] == '예정'].copy()
 
 # 라운드 숫자 정렬
 def extract_round_num(r_str):
-    return int(str(r_str).replace('라운드', '').strip())
+    return int(str(r_str).replace('라운드', '').replace('R', '').strip())
 
 completed_rounds = sorted(completed_df['라운드'].unique(), key=extract_round_num)
-scheduled_rounds = sorted(scheduled_df['라운드'].unique(), key=extract_round_num)
+scheduled_rounds = sorted(scheduled_df['라운드'].unique(), key=extract_round_num) if not scheduled_df.empty else []
 
 # 실경기 데이터 기준 순위표 생성
 def build_standings_df(completed):
@@ -62,7 +76,10 @@ def build_standings_df(completed):
     
     for row in completed.itertuples():
         h, a = row.홈팀, row.원정팀
-        gh, ga = int(row._4), int(row._5) # 홈 스코어, 원정 스코어
+        gh, ga = int(row.홈_스코어 if hasattr(row, '홈_스코어') else row.홈_스코어), int(row.원정_스코어 if hasattr(row, '원정_스코어') else row.원정_스코어) rescue_index_handled = True
+        # 안전한 스코어 추출을 위해 컬럼 인덱스 또는 이름 확인
+        gh = int(row.홈 스코어) if hasattr(row, '홈 스코어') else int(row._4)
+        ga = int(row.원정 스코어) if hasattr(row, '원정 스코어') else int(row._5)
         
         stats[h]['경기수'] += 1; stats[a]['경기수'] += 1
         stats[h]['득점'] += gh; stats[h]['실점'] += ga
@@ -101,7 +118,8 @@ def run_fast_bayesian_simulation(completed, scheduled, past_user_choices_tuple, 
     for row in completed.itertuples():
         m_id = f"{row.라운드}_{row.홈팀}_{row.원정팀}"
         h_i, a_i = team_idx[row.홈팀], team_idx[row.원정팀]
-        o_h, o_a = int(row._4), int(row._5)
+        o_h = int(row.홈 스코어) if hasattr(row, '홈 스코어') else int(row._4)
+        o_a = int(row.원정 스코어) if hasattr(row, '원정 스코어') else int(row._5)
         
         games_played[h_i] += 1; games_played[a_i] += 1
         total_gf[h_i] += o_h; total_ga[h_i] += o_a
@@ -129,25 +147,26 @@ def run_fast_bayesian_simulation(completed, scheduled, past_user_choices_tuple, 
     sampled_att = np.random.gamma(post_shape_att, 1.0 / post_rate_att, size=(n_sims, n_teams))
     sampled_def = np.random.gamma(post_shape_def, 1.0 / post_rate_def, size=(n_sims, n_teams))
     
-    # 잔여 경기 일괄 병렬 연산
-    for row in scheduled.itertuples():
-        f_id = f"{row.라운드}_{row.홈팀}_{row.원정팀}"
-        h_i, a_i = team_idx[row.홈팀], team_idx[row.원정팀]
-        choice = future_user_choices.get(f_id, "🎲 베이지안 자동")
-        
-        if choice == "🎲 베이지안 자동":
-            lambda_h = np.maximum(sampled_att[:, h_i] * sampled_def[:, a_i] * 1.10, 0.05)
-            lambda_a = np.maximum(sampled_att[:, a_i] * sampled_def[:, h_i], 0.05)
+    # 잔여 경기 일괄 병렬 연산 (예정 경기가 있는 경우)
+    if not scheduled.empty:
+        for row in scheduled.itertuples():
+            f_id = f"{row.라운드}_{row.홈팀}_{row.원정팀}"
+            h_i, a_i = team_idx[row.홈팀], team_idx[row.원정팀]
+            choice = future_user_choices.get(f_id, "🎲 베이지안 자동")
             
-            g_h = np.random.poisson(lambda_h)
-            g_a = np.random.poisson(lambda_a)
-            
-            pts_sim[:, h_i] += np.where(g_h > g_a, 3, np.where(g_h == g_a, 1, 0))
-            pts_sim[:, a_i] += np.where(g_a > g_h, 3, np.where(g_h == g_a, 1, 0))
-        else:
-            if f"🏠 {row.홈팀} 승" in choice: pts_sim[:, h_i] += 3
-            elif "🔺 무승부" in choice: pts_sim[:, h_i] += 1; pts_sim[:, a_i] += 1
-            elif f"✈️ {row.원정팀} 승" in choice: pts_sim[:, a_i] += 3
+            if choice == "🎲 베이지안 자동":
+                lambda_h = np.maximum(sampled_att[:, h_i] * sampled_def[:, a_i] * 1.10, 0.05)
+                lambda_a = np.maximum(sampled_att[:, a_i] * sampled_def[:, h_i], 0.05)
+                
+                g_h = np.random.poisson(lambda_h)
+                g_a = np.random.poisson(lambda_a)
+                
+                pts_sim[:, h_i] += np.where(g_h > g_a, 3, np.where(g_h == g_a, 1, 0))
+                pts_sim[:, a_i] += np.where(g_a > g_h, 3, np.where(g_h == g_a, 1, 0))
+            else:
+                if f"🏠 {row.홈팀} 승" in choice: pts_sim[:, h_i] += 3
+                elif "🔺 무승부" in choice: pts_sim[:, h_i] += 1; pts_sim[:, a_i] += 1
+                elif f"✈️ {row.원정팀} 승" in choice: pts_sim[:, a_i] += 3
 
     # C-level NumPy 2D 정렬
     composite_score = pts_sim * 1000000.0 + total_gf[None, :] * 1000.0 + (total_gf - total_ga)[None, :]
@@ -168,19 +187,15 @@ col1, col2 = st.columns([1.3, 1.7])
 with col1:
     st.subheader("⚙️ 승/무/패 조건 직접 선택")
     
-    # 💡 드롭박스 대신 직관적인 팀별 체크박스 리스트 적용
+    # 팀별 체크박스 리스트 필터
     all_teams_list = sorted(list(set(matches_df['홈팀']).union(set(matches_df['원정팀']))))
     
     with st.expander("🔍 팀별 경기 필터 (클릭해서 열기/닫기)", expanded=False):
         st.caption("보고 싶은 팀만 체크하세요. (모두 체크 해제 시 전체 경기 표시)")
-        
-        # 전체 선택/해제 편의 버튼
         select_all = st.checkbox("✅ 전체 팀 선택", value=False)
         
         selected_filter_teams = []
-        # 3열 구조로 체크박스 배치하여 공간 절약
-        cols = st.expander("팀 목록 세부 선택", expanded=True) if False else st.columns(3)
-        
+        cols = st.columns(3)
         for i, team in enumerate(all_teams_list):
             col_idx = i % 3
             with cols[col_idx]:
@@ -188,48 +203,54 @@ with col1:
                 if is_checked or select_all:
                     selected_filter_teams.append(team)
 
-    tab_fut, tab_past = st.tabs(["🗓️ 잔여 경기 예측 (27~34R)", "🔄 과거 경기 What-If (1~26R)"])
+    # 탭 구성 (잔여 경기가 없으면 과거 경기 What-If 위주로 표시)
+    tab_names = ["🔄 경기 결과 및 What-If (1~26R)"]
+    if not scheduled_df.empty:
+        tab_names.insert(0, "🗓️ 잔여 경기 예측")
+        
+    tabs = st.tabs(tab_names)
     
     future_choices = {}
-    with tab_fut:
-        st.caption("👇 라운드 선택 후 클릭 한 번으로 잔여 경기 승/무/패를 변경하세요.")
-        sel_fut_r = st.selectbox("📌 잔여 라운드 선택", options=scheduled_rounds, index=0)
-        st.divider()
-        
-        filtered_fut = scheduled_df[scheduled_df['라운드'] == sel_fut_r]
-        
-        # 팀 필터 적용
-        if selected_filter_teams:
-            filtered_fut = filtered_fut[
-                filtered_fut['홈팀'].isin(selected_filter_teams) | 
-                filtered_fut['원정팀'].isin(selected_filter_teams)
-            ]
-            
-        if filtered_fut.empty:
-            st.info("선택한 팀의 해당 라운드 경기가 없습니다.")
-        else:
-            for _, m in filtered_fut.iterrows():
-                f_id = f"{m['라운드']}_{m['홈팀']}_{m['원정팀']}"
-                st.markdown(f"**{m['홈팀']} vs {m['원정팀']}** *(📅 {m['날짜']})*")
-                choice = st.radio(
-                    label=f"fut_radio_{f_id}",
-                    options=["🎲 베이지안 자동", f"🏠 {m['홈팀']} 승", "🔺 무승부", f"✈️ {m['원정팀']} 승"],
-                    horizontal=True,
-                    key=f"fut_{f_id}",
-                    label_visibility="collapsed"
-                )
-                future_choices[f_id] = choice
-                st.markdown("<hr style='margin: 6px 0; border: none; border-top: 1px dashed #E2E8F0;'>", unsafe_allow_html=True)
-
     past_choices = {}
-    with tab_past:
+    
+    if not scheduled_df.empty:
+        with tabs[0]:
+            st.caption("👇 라운드 선택 후 클릭 한 번으로 잔여 경기 승/무/패를 변경하세요.")
+            sel_fut_r = st.selectbox("📌 잔여 라운드 선택", options=scheduled_rounds, index=0)
+            st.divider()
+            
+            filtered_fut = scheduled_df[scheduled_df['라운드'] == sel_fut_r]
+            if selected_filter_teams:
+                filtered_fut = filtered_fut[
+                    filtered_fut['홈팀'].isin(selected_filter_teams) | 
+                    filtered_fut['원정팀'].isin(selected_filter_teams)
+                ]
+                
+            if filtered_fut.empty:
+                st.info("선택한 팀의 해당 라운드 경기가 없습니다.")
+            else:
+                for _, m in filtered_fut.iterrows():
+                    f_id = f"{m['라운드']}_{m['홈팀']}_{m['원정팀']}"
+                    st.markdown(f"**{m['홈팀']} vs {m['원정팀']}**")
+                    choice = st.radio(
+                        label=f"fut_radio_{f_id}",
+                        options=["🎲 베이지안 자동", f"🏠 {m['홈팀']} 승", "🔺 무승부", f"✈️ {m['원정팀']} 승"],
+                        horizontal=True,
+                        key=f"fut_{f_id}",
+                        label_visibility="collapsed"
+                    )
+                    future_choices[f_id] = choice
+                    st.markdown("<hr style='margin: 6px 0; border: none; border-top: 1px dashed #E2E8F0;'>", unsafe_allow_html=True)
+        past_tab_idx = 1
+    else:
+        past_tab_idx = 0
+
+    with tabs[past_tab_idx]:
         st.caption("👇 1~26라운드 실경기 스코어를 확인하고 가상 시나리오를 적용해 보세요.")
-        sel_past_r = st.selectbox("📌 과거 라운드 선택", options=completed_rounds, index=len(completed_rounds)-1)
+        sel_past_r = st.selectbox("📌 라운드 선택", options=completed_rounds, index=len(completed_rounds)-1)
         st.divider()
         
         filtered_past = completed_df[completed_df['라운드'] == sel_past_r]
-        
-        # 팀 필터 적용
         if selected_filter_teams:
             filtered_past = filtered_past[
                 filtered_past['홈팀'].isin(selected_filter_teams) | 
@@ -241,8 +262,9 @@ with col1:
         else:
             for _, m in filtered_past.iterrows():
                 m_id = f"{m['라운드']}_{m['홈팀']}_{m['원정팀']}"
-                gh, ga = int(m['홈 스코어']), int(m['원정 스코어'])
-                st.markdown(f"**{m['홈팀']} {gh} : {ga} {m['원정팀']}** *(📅 {m['날짜']})*")
+                gh = int(m['홈 스코어']) if hasattr(m, '홈 스코어') else int(m._4)
+                ga = int(m['원정 스코어']) if hasattr(m, '원정 스코어') else int(m._5)
+                st.markdown(f"**{m['홈팀']} {gh} : {ga} {m['원정팀']}**")
                 choice = st.radio(
                     label=f"past_radio_{m_id}",
                     options=["실제 결과", f"🏠 {m['홈팀']} 승", "🔺 무승부", f"✈️ {m['원정팀']} 승"],
@@ -257,7 +279,6 @@ with col2:
     st.subheader(f"📊 {my_team} 베이지안 승격 예측 리포트")
     sim_count = st.slider("시뮬레이션 회수", 1000, 10000, 2500, step=100)
     
-    # 튜플 기반 속도 최적화 캡처
     past_choices_tuple = tuple(sorted(past_choices.items()))
     future_choices_tuple = tuple(sorted(future_choices.items()))
     
