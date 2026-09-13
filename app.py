@@ -35,14 +35,19 @@ LOGO_MAP = {
     "용인 FC": "yongin.png"
 }
 
-def get_logo_html(team_name, size=24):
-    """팀 이름으로 이미지 태그 생성 (파일이 없을 경우 대비)"""
+def get_logo_html(team_name, size=22):
+    """팀 이름으로 이미지 태그 생성 (경로 및 파일 존재 확인)"""
     file_name = LOGO_MAP.get(team_name)
-    if file_name and os.path.exists(file_name):
-        return f'<img src="data:image/png;base64,{base64.b64encode(open(file_name, "rb").read()).decode()}" width="{size}" height="{size}" style="vertical-align: middle; margin-right: 6px;">'
+    if file_name:
+        # 루트 디렉토리 또는 emblem 디렉토리 탐색
+        possible_paths = [file_name, os.path.join("emblem", file_name)]
+        for path in possible_paths:
+            if os.path.exists(path):
+                encoded = base64.b64encode(open(path, "rb").read()).decode()
+                return f'<img src="data:image/png;base64,{encoded}" width="{size}" height="{size}" style="vertical-align: middle; margin-right: 6px;">'
     return ""
 
-# 3. CSS 스타일링 (호버 툴팁 + 이미지 UI)
+# 3. CSS 스타일링 (호버 툴팁 + UI)
 st.markdown("""
     <style>
     .main { background-color: #F4F7FA; }
@@ -73,7 +78,7 @@ st.markdown("""
     }
     .tooltip .tooltiptext {
         visibility: hidden;
-        width: 300px;
+        width: 320px;
         background-color: #1E293B;
         color: #FFFFFF;
         text-align: left;
@@ -83,7 +88,7 @@ st.markdown("""
         z-index: 99;
         bottom: 125%;
         left: 50%;
-        margin-left: -150px;
+        margin-left: -160px;
         opacity: 0;
         transition: opacity 0.2s ease-in-out;
         box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
@@ -159,43 +164,47 @@ def fetch_kleague_official_standings():
     ]
     return pd.DataFrame(default_teams), "🟢 5분 주기 로드 (K리그 공식 백업)"
 
-# 5. 지난 경기 및 잔여 경기 로드
+# 5. 지난 경기 및 잔여 경기 로드 (날짜 및 장소 정보 추가)
 @st.cache_data(ttl=300)
 def fetch_past_and_future_matches():
     past_matches = [
         {
-            "id": "p1", "R": 25, "홈팀": "대구 FC", "원정팀": "수원 FC", 
+            "id": "p1", "R": 25, "날짜": "08.24(토) 19:00", "장소": "DGB대구은행파크",
+            "홈팀": "대구 FC", "원정팀": "수원 FC", 
             "실제홈득점": 1, "실제원정득점": 2, "실제결과": "원정승",
             "내용": "⚽ 득점: 세징야(대구 34'), 이승우(수원FC 62', 81')<br>🟥 퇴장: 대구 수비수 75' 경고 누적 퇴장<br>🚑 결장: 수원FC 주요 미드필더 햄스트링 부상"
         },
         {
-            "id": "p2", "R": 25, "홈팀": "수원 삼성 블루윙즈", "원정팀": "서울 이랜드 FC", 
+            "id": "p2", "R": 25, "날짜": "08.25(일) 19:30", "장소": "수원월드컵경기장",
+            "홈팀": "수원 삼성 블루윙즈", "원정팀": "서울 이랜드 FC", 
             "실제홈득점": 2, "실제원정득점": 1, "실제결과": "홈승",
             "내용": "⚽ 득점: 뮬리치(수원 15', 44'), 오스마르(서울E 88' PK)<br>🟨 경고: 수원 3회, 서울E 2회<br>⭐ 특이사항: 수원 뮬리치 2골 활약"
         },
         {
-            "id": "p3", "R": 26, "홈팀": "부산 아이파크", "원정팀": "대구 FC", 
+            "id": "p3", "R": 26, "날짜": "08.31(토) 19:00", "장소": "부산아시아드",
+            "홈팀": "부산 아이파크", "원정팀": "대구 FC", 
             "실제홈득점": 0, "실제원정득점": 0, "실제결과": "무승부",
             "내용": "⚽ 득점: 없음 (0:0 무승부)<br>🟨 경고: 대구 4회 (주전 센터백 징계)<br>🚑 부상: 부산 에이스 30분 만에 근육 부상 교체"
         },
         {
-            "id": "p4", "R": 26, "홈팀": "화성 FC", "원정팀": "수원 삼성 블루윙즈", 
+            "id": "p4", "R": 26, "날짜": "09.01(일) 19:00", "장소": "화성종합경기타운",
+            "홈팀": "화성 FC", "원정팀": "수원 삼성 블루윙즈", 
             "실제홈득점": 1, "실제원정득점": 3, "실제결과": "원정승",
             "내용": "⚽ 득점: 김효기(화성 50'), 카즈키(수원 21'), 뮬리치(수원 70'), 전진우(수원 85')"
         },
     ]
     
     remaining_matches = [
-        {"R": 27, "홈팀": "수원 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 27, "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
-        {"R": 27, "홈팀": "화성 FC", "원정팀": "부산 아이파크"},
-        {"R": 28, "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 28, "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
-        {"R": 28, "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"},
-        {"R": 29, "홈팀": "수원 FC", "원정팀": "서울 이랜드 FC"},
-        {"R": 29, "홈팀": "대구 FC", "원정팀": "화성 FC"},
-        {"R": 30, "홈팀": "전남 드래곤즈", "원정팀": "대구 FC"},
-        {"R": 30, "홈팀": "화성 FC", "원정팀": "수원 FC"},
+        {"R": 27, "날짜": "09.14(토) 16:30", "장소": "수원종합운동장", "홈팀": "수원 FC", "원정팀": "수원 삼성 블루윙즈"},
+        {"R": 27, "날짜": "09.15(일) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
+        {"R": 27, "날짜": "09.15(일) 19:00", "장소": "화성종합경기타운", "홈팀": "화성 FC", "원정팀": "부산 아이파크"},
+        {"R": 28, "날짜": "09.21(토) 16:30", "장소": "DGB대구은행파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
+        {"R": 28, "날짜": "09.21(토) 19:00", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
+        {"R": 28, "날짜": "09.22(일) 19:00", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"},
+        {"R": 29, "날짜": "09.28(토) 16:30", "장소": "수원종합운동장", "홈팀": "수원 FC", "원정팀": "서울 이랜드 FC"},
+        {"R": 29, "날짜": "09.29(일) 19:00", "장소": "DGB대구은행파크", "홈팀": "대구 FC", "원정팀": "화성 FC"},
+        {"R": 30, "날짜": "10.05(토) 14:00", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "대구 FC"},
+        {"R": 30, "날짜": "10.06(일) 16:30", "장소": "화성종합경기타운", "홈팀": "화성 FC", "원정팀": "수원 FC"},
     ]
     return past_matches, remaining_matches
 
@@ -227,11 +236,7 @@ def calculate_match_probabilities(home_row, away_row, form_weight, home_advantag
     p_home_adj = p_home * (1 - p_draw)
     p_away_adj = (1 - p_home) * (1 - p_draw)
     
-    odds_h = round(0.90 / max(p_home_adj, 0.05), 2)
-    odds_d = round(0.90 / max(p_draw, 0.05), 2)
-    odds_a = round(0.90 / max(p_away_adj, 0.05), 2)
-    
-    return [p_home_adj, p_draw, p_away_adj], (odds_h, odds_d, odds_a)
+    return [p_home_adj, p_draw, p_away_adj]
 
 # 7. 시뮬레이션 엔진
 def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=32, n_sims=5000):
@@ -287,7 +292,7 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
         if choice == "🎲 자동 (가중치 승률)":
             h_row = df[df['팀'] == home_team].iloc[0]
             a_row = df[df['팀'] == away_team].iloc[0]
-            probs, _ = calculate_match_probabilities(h_row, a_row, form_w, home_adv)
+            probs = calculate_match_probabilities(h_row, a_row, form_w, home_adv)
             res = np.random.choice([3, 1, 0], size=n_sims, p=probs)
             pts_sim[:, h_i] += np.where(res == 3, 3, np.where(res == 1, 1, 0))
             pts_sim[:, a_i] += np.where(res == 0, 3, np.where(res == 1, 1, 0))
@@ -342,21 +347,24 @@ with col1:
                 for idx, match in enumerate(r_matches):
                     m_global_idx = remaining_matches.index(match)
                     h_team, a_team = match['홈팀'], match['원정팀']
+                    m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
                     
                     h_row = df_standings[df_standings['팀'] == h_team].iloc[0]
                     a_row = df_standings[df_standings['팀'] == a_team].iloc[0]
-                    probs, odds = calculate_match_probabilities(h_row, a_row, form_w, home_adv)
+                    probs = calculate_match_probabilities(h_row, a_row, form_w, home_adv)
                     
-                    # ⚽ 경기 옆(라인 상단)에 엠블럼과 경기명 표시
+                    # 경기 날짜 및 경기장 정보 표시
+                    st.caption(f"📅 {m_date} | 📍 {m_venue}")
+                    
+                    # 경기 옆(라인 상단)에 엠블럼과 팀명 표시
                     match_header_html = f"""
-                    <div style="font-size: 1rem; font-weight: bold; margin-bottom: 4px;">
-                        {get_logo_html(h_team, size=20)} {h_team} <span style="font-size:0.85rem; color:#64748B;">({probs[0]*100:.0f}%)</span>
+                    <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
+                        {get_logo_html(h_team, size=22)}{h_team} <span style="font-size:0.85rem; color:#64748B;">({probs[0]*100:.0f}%)</span>
                         <span style="color:#94A3B8; margin: 0 6px;">VS</span> 
-                        {get_logo_html(a_team, size=20)} {a_team} <span style="font-size:0.85rem; color:#64748B;">({probs[2]*100:.0f}%)</span>
+                        {get_logo_html(a_team, size=22)}{a_team} <span style="font-size:0.85rem; color:#64748B;">({probs[2]*100:.0f}%)</span>
                     </div>
                     """
                     st.markdown(match_header_html, unsafe_allow_html=True)
-                    st.caption(f"예상 배당: [홈 {odds[0]}] | [무 {odds[1]}] | [원정 {odds[2]}]")
                     
                     opt_home = f"🏠 {h_team} 승"
                     opt_draw = "🔺 무승부"
@@ -380,13 +388,16 @@ with col1:
             with st.expander(f"📜 Round {r} 지난 경기", expanded=True):
                 r_matches = [m for m in past_matches if m["R"] == r]
                 for idx, m in enumerate(r_matches):
-                    h_logo = get_logo_html(m['홈팀'], size=20)
-                    a_logo = get_logo_html(m['원정팀'], size=20)
+                    h_logo = get_logo_html(m['홈팀'], size=22)
+                    a_logo = get_logo_html(m['원정팀'], size=22)
+                    m_date, m_venue = m.get('날짜', ''), m.get('장소', '')
+                    
+                    st.caption(f"📅 {m_date} | 📍 {m_venue}")
                     
                     # ⚽ 경기 정보 및 엠블럼을 한 줄로 구성
                     tooltip_html = f"""
                     <div class="tooltip">
-                        <span style="font-size: 1rem; font-weight: bold;">
+                        <span style="font-size: 1.05rem; font-weight: bold;">
                             {h_logo} {m['홈팀']} 
                             <span style="color:#0085FF; margin: 0 4px;">{m['실제홈득점']} : {m['실제원정득점']}</span> 
                             {a_logo} {m['원정팀']}
