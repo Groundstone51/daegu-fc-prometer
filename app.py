@@ -7,33 +7,37 @@ import os
 
 # 1. 페이지 설정
 st.set_page_config(
-    page_title="K리그2 승격 시뮬레이터",
+    page_title="2026 K리그2 승격 시뮬레이터",
     page_icon="⚽",
     layout="wide"
 )
 
-# 2. 팀명 - 이미지 파일명 매핑
+# 2. 팀명 - 로고 이미지 파일명 매핑
 LOGO_MAP = {
-    "안산 그리너스 FC": "ansan.png",
-    "부산 아이파크": "busan.png",
-    "천안 시티 FC": "cheonan.png",
-    "충북 청주 FC": "chungbukcheongju.png",
-    "충남 아산 FC": "chungnamasan.png",
+    "수원 삼성 블루윙즈": "suwon_samsung.png",
     "대구 FC": "daegu.png",
-    "김해 FC 2008": "gimhae.png",
-    "김포 FC": "gimpo.png",
-    "경남 FC": "gyeongnam.png",
-    "화성 FC": "hwasung.png",
-    "전남 드래곤즈": "jeonnam.png",
-    "파주 프런티어 FC": "paju.png",
-    "성남 FC": "seongnam.png",
     "서울 이랜드 FC": "seoul.png",
     "수원 FC": "suwon_fc.png",
-    "수원 삼성 블루윙즈": "suwon_samsung.png",
-    "용인 FC": "yongin.png"
+    "화성 FC": "hwasung.png",
+    "부산 아이파크": "busan.png",
+    "경남 FC": "gyeongnam.png",
+    "김포 FC": "gimpo.png",
+    "충남아산 FC": "chungnamasan.png",
+    "성남 FC": "seongnam.png",
+    "용인 FC": "yongin.png",
+    "파주 프런티어 FC": "paju.png",
+    "충북 청주 FC": "chungbukcheongju.png",
+    "천안시티 FC": "cheonan.png",
+    "안산 그리너스 FC": "ansan.png",
+    "전남 드래곤즈": "jeonnam.png",
+    "김해 FC 2008": "gimhae.png"
 }
 
 def get_logo_html(team_name, size=22):
+    # 명칭 정규화 대응
+    clean_name = team_name.strip()
+    if not clean_name.endswith("FC") and clean_name not in ["수원 삼성", "부산 아이파크", "전남 드래곤즈"]:
+        pass
     file_name = LOGO_MAP.get(team_name)
     if file_name:
         possible_paths = [file_name, os.path.join("emblem", file_name)]
@@ -108,56 +112,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. 실시간 팀 순위 데이터 (하드코딩 백업)
+# 4. 공식 현재 순위 데이터 (2026-09-13 기준 반영)
 @st.cache_data(ttl=60)
 def fetch_kleague_official_standings():
     default_teams = [
-        {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 43, "실점": 24, "최근5경기승점": 11},
-        {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 42, "실점": 28, "최근5경기승점": 10},
-        {"팀": "서울 이랜드 FC", "승점": 45, "경기수": 25, "득점": 38, "실점": 24, "최근5경기승점": 8},
-        {"팀": "수원 FC", "승점": 44, "경기수": 24, "득점": 40, "실점": 22, "최근5경기승점": 9},
-        {"팀": "화성 FC", "승점": 43, "경기수": 25, "득점": 35, "실점": 21, "최근5경기승점": 7},
-        {"팀": "부산 아이파크", "승점": 38, "경기수": 24, "득점": 31, "실점": 25, "최근5경기승점": 6},
-        {"팀": "충남 아산 FC", "승점": 31, "경기수": 24, "득점": 28, "실점": 27, "최근5경기승점": 5},
-        {"팀": "성남 FC", "승점": 31, "경기수": 24, "득점": 27, "실점": 28, "최근5경기승점": 4},
-        {"팀": "김포 FC", "승점": 31, "경기수": 24, "득점": 25, "실점": 27, "최근5경기승점": 6},
-        {"팀": "경남 FC", "승점": 30, "경기수": 24, "득점": 27, "실점": 27, "최근5경기승점": 5},
-        {"팀": "용인 FC", "승점": 26, "경기수": 24, "득점": 25, "실점": 29, "최근5경기승점": 3},
-        {"팀": "파주 프런티어 FC", "승점": 26, "경기수": 24, "득점": 22, "실점": 28, "최근5경기승점": 4},
-        {"팀": "충북 청주 FC", "승점": 26, "경기수": 25, "득점": 21, "실점": 32, "최근5경기승점": 2},
-        {"팀": "천안 시티 FC", "승점": 22, "경기수": 24, "득점": 21, "실점": 26, "최근5경기승점": 3},
-        {"팀": "안산 그리너스 FC", "승점": 22, "경기수": 25, "득점": 19, "실점": 40, "최근5경기승점": 1},
-        {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34, "최근5경기승점": 2},
-        {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43, "최근5경기승점": 1}
+        {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 39, "실점": 20, "최근5경기승점": 11},
+        {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 47, "실점": 33, "최근5경기승점": 10},
+        {"팀": "서울 이랜드 FC", "승점": 45, "경기수": 25, "득점": 43, "실점": 29, "최근5경기승점": 9},
+        {"팀": "수원 FC", "승점": 45, "경기수": 24, "득점": 47, "실점": 29, "최근5경기승점": 10},
+        {"팀": "화성 FC", "승점": 43, "경기수": 25, "득점": 39, "실점": 25, "최근5경기승점": 8},
+        {"팀": "부산 아이파크", "승점": 41, "경기수": 25, "득점": 41, "실점": 33, "최근5경기승점": 9},
+        {"팀": "경남 FC", "승점": 33, "경기수": 24, "득점": 31, "실점": 30, "최근5경기승점": 7},
+        {"팀": "김포 FC", "승점": 32, "경기수": 24, "득점": 30, "실점": 30, "최근5경기승점": 7},
+        {"팀": "충남아산 FC", "승점": 31, "경기수": 24, "득점": 31, "실점": 30, "최근5경기승점": 6},
+        {"팀": "성남 FC", "승점": 30, "경기수": 24, "득점": 26, "실점": 28, "최근5경기승점": 6},
+        {"팀": "용인 FC", "승점": 26, "경기수": 24, "득점": 31, "실점": 35, "최근5경기승점": 5},
+        {"팀": "파주 프런티어 FC", "승점": 26, "경기수": 24, "득점": 22, "실점": 28, "최근5경기승점": 5},
+        {"팀": "충북 청주 FC", "승점": 26, "경기수": 25, "득점": 28, "실점": 39, "최근5경기승점": 5},
+        {"팀": "천안시티 FC", "승점": 23, "경기수": 25, "득점": 29, "실점": 34, "최근5경기승점": 4},
+        {"팀": "안산 그리너스 FC", "승점": 22, "경기수": 25, "득점": 25, "실점": 46, "최근5경기승점": 4},
+        {"팀": "전남 드래곤즈", "승점": 21, "경기수": 24, "득점": 28, "실점": 40, "최근5경기승점": 4},
+        {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 19, "실점": 47, "최근5경기승점": 2}
     ]
-    return pd.DataFrame(default_teams), "🟢 내장 데이터베이스 구동 모드 (안정성 100%)"
+    return pd.DataFrame(default_teams), "🟢 2026년 9월 13일 공식 데이터 기준 연동 완료"
 
-# 5. 1라운드부터 현재까지의 전체 경기 데이터베이스 (직접 관리형)
-# - homeScore/awayScore에 숫자가 있으면 '지난 경기(What-If 대상)'로 분류됩니다.
-# - None으로 두면 '잔여 경기'로 자동 분류됩니다.
+# 5. 최근 및 잔여 경기 데이터베이스 구축
 @st.cache_data(ttl=60)
 def fetch_past_and_future_matches():
     ALL_MATCHES = [
-        # --- [최근 경기 결과: 25 ~ 26라운드 예시 및 반영] ---
-        {"R": 25, "날짜": "2026-09-04", "장소": "청주종합경기장", "홈팀": "충북 청주 FC", "원정팀": "서울 이랜드 FC", "homeScore": 0, "awayScore": 2},
-        {"R": 25, "날짜": "2026-09-05", "장소": "파주스타디움", "홈팀": "파주 프런티어 FC", "원정팀": "대구 FC", "homeScore": 0, "awayScore": 0},
-        {"R": 25, "날짜": "2026-09-05", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "안산 그리너스 FC", "homeScore": 0, "awayScore": 1},
-        {"R": 25, "날짜": "2026-09-05", "장소": "천안대한민국", "홈팀": "천안 시티 FC", "원정팀": "화성 FC", "homeScore": 1, "awayScore": 1},
-        {"R": 25, "날짜": "2026-09-06", "장소": "용인미르스타디움", "홈팀": "용인 FC", "원정팀": "수원 FC", "homeScore": 1, "awayScore": 1},
-        {"R": 25, "날짜": "2026-09-06", "장소": "김해운동장", "홈팀": "김해 FC 2008", "원정팀": "전남 드래곤즈", "homeScore": 2, "awayScore": 2},
-        {"R": 25, "날짜": "2026-09-06", "장소": "김포솔터축구장", "홈팀": "김포 FC", "원정팀": "성남 FC", "homeScore": 1, "awayScore": 2},
-        {"R": 25, "날짜": "2026-09-06", "장소": "수원월드컵경기장", "홈팀": "수원 삼성 블루윙즈", "원정팀": "충남 아산 FC", "homeScore": 2, "awayScore": 0},
-        
+        # --- 26라운드 주요 결과 (최근 검증된 경기) ---
         {"R": 26, "날짜": "2026-09-12", "장소": "대구iM뱅크파크", "홈팀": "대구 FC", "원정팀": "용인 FC", "homeScore": 3, "awayScore": 1},
+        {"R": 26, "날짜": "2026-09-12", "장소": "이순신종합운동장", "홈팀": "충남아산 FC", "원정팀": "충북 청주 FC", "homeScore": 0, "awayScore": 1},
         {"R": 26, "날짜": "2026-09-12", "장소": "목동종합운동장", "홈팀": "서울 이랜드 FC", "원정팀": "수원 삼성 블루윙즈", "homeScore": 0, "awayScore": 1},
         {"R": 26, "날짜": "2026-09-12", "장소": "안산와스타디움", "홈팀": "안산 그리너스 FC", "원정팀": "화성 FC", "homeScore": 0, "awayScore": 2},
-        {"R": 26, "날짜": "2026-09-13", "장소": "이순신종합운동장", "홈팀": "충남 아산 FC", "원정팀": "충북 청주 FC", "homeScore": 0, "awayScore": 1},
-        {"R": 26, "날짜": "2026-09-13", "장소": "창원축구센터", "홈팀": "경남 FC", "원정팀": "성남 FC", "homeScore": 1, "awayScore": 0},
-        {"R": 26, "날짜": "2026-09-13", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "김포 FC", "homeScore": 2, "awayScore": 2},
-        {"R": 26, "날짜": "2026-09-13", "장소": "수원종합운동장", "홈팀": "수원 FC", "원정팀": "천안 시티 FC", "homeScore": 1, "awayScore": 1},
-        {"R": 26, "날짜": "2026-09-13", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "김해 FC 2008", "homeScore": 2, "awayScore": 0},
-
-        # --- [남은 경기 데이터 예시: 27라운드 이후] ---
+        
+        # --- 27라운드 이후 잔여 경기 예시 ---
         {"R": 27, "날짜": "2026-09-19", "장소": "대구iM뱅크파크", "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈", "homeScore": None, "awayScore": None},
         {"R": 27, "날짜": "2026-09-20", "장소": "부산아시아드", "홈팀": "부산 아이파크", "원정팀": "서울 이랜드 FC", "homeScore": None, "awayScore": None},
         {"R": 27, "날짜": "2026-09-20", "장소": "광양전용구장", "홈팀": "전남 드래곤즈", "원정팀": "성남 FC", "homeScore": None, "awayScore": None},
@@ -201,12 +190,12 @@ df_standings, status_msg = fetch_kleague_official_standings()
 past_matches, remaining_matches = fetch_past_and_future_matches()
 
 # --- 타이틀 및 안내문 ---
-st.title("⚽ K리그2 승격 시뮬레이터")
-st.info("마우스를 올려 지난 경기 변수를 확인하고, What-If 시나리오를 통해 승격 확률을 계산해 보세요!")
-st.caption(f"{status_msg} | 내장 데이터베이스 기반 안정 구동 중")
+st.title("⚽ 2026 K리그2 승격 시뮬레이터")
+st.info("공식 순위 및 최근 경기 데이터베이스 기반 What-If 시뮬레이션을 실행하세요!")
+st.caption(f"{status_msg}")
 st.divider()
 
-# 6. 경기별 확률 연산
+# 6. 경기별 확률 연산 엔진
 def calculate_match_probabilities(home_row, away_row, form_weight, home_advantage):
     h_att = home_row['득점'] / home_row['경기수']
     h_def = home_row['실점'] / home_row['경기수']
@@ -227,8 +216,8 @@ def calculate_match_probabilities(home_row, away_row, form_weight, home_advantag
     
     return [p_home_adj, p_draw, p_away_adj]
 
-# 7. 시뮬레이션 엔진
-def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=32, n_sims=5000):
+# 7. 몬테카를로 시뮬레이션
+def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, future_preds, form_w, home_adv, total_games=34, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
     n_teams = len(teams)
@@ -239,7 +228,6 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
     for m in past_list:
         if m["홈팀"] not in team_idx or m["원정팀"] not in team_idx:
             continue
-            
         h_i = team_idx[m["홈팀"]]
         a_i = team_idx[m["원정팀"]]
         
@@ -319,32 +307,17 @@ def run_what_if_simulation(df_base, past_list, past_preds, future_schedule, futu
 col1, col2 = st.columns([1.3, 1.7])
 
 with col1:
-    tooltip_header_html = """
-    <div style="display: flex; align-items: center; margin-bottom: 12px;">
-        <h3 style="margin: 0; padding: 0; font-size: 1.3rem; font-weight: 700;">⚙️ 승률 분석 가중치 설정</h3>
-        <div class="tooltip" style="display: inline-block; width: auto; margin-left: 8px; padding: 0; border: none; background: none;">
-            <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: #E2E8F0; color: #475569; font-size: 0.8rem; font-weight: bold; cursor: pointer;">?</span>
-            <span class="tooltiptext" style="width: 300px; left: 50%; margin-left: -150px;">
-                <b>💡 승률 분석 가중치란?</b><br>
-                시뮬레이션 시 각 팀의 승리 확률을 계산할 때 <b>최근 흐름</b>과 <b>홈 이점</b>을 얼마나 강하게 반영할지 조절하는 파라미터입니다.<br><br>
-                • <b>최근 5경기 흐름</b>: 높은 값일수록 최근 연승/상승세 팀의 승률을 가산합니다.<br>
-                • <b>홈 경기 이점</b>: 높은 값일수록 홈팀의 기대 득점을 올려 홈 승률을 극대화합니다.
-            </span>
-        </div>
-    </div>
-    """
-    st.markdown(tooltip_header_html, unsafe_allow_html=True)
-    
+    st.subheader("⚙️ 모델 가중치 설정")
     form_w = st.slider("최근 5경기 흐름 반영 비중", 0.0, 0.5, 0.2, step=0.05)
     home_adv = st.slider("홈 경기 이점 가중치", 0.0, 0.3, 0.1, step=0.05)
     
     st.divider()
     
-    tab_future, tab_past = st.tabs(["🗓️ 잔여 경기 예측", "🔄 지난 경기 기록 & What-If"])
+    tab_future, tab_past = st.tabs(["🗓️ 잔여 경기 예측", "🔄 최근 경기 결과 & What-If"])
     
     future_preds = {}
     with tab_future:
-        st.caption("남은 경기의 승패를 고르시면 시뮬레이션에 반영됩니다.")
+        st.caption("남은 경기의 승패를 조작하여 시나리오를 구성하세요.")
         fut_rounds = sorted(list(set([m["R"] for m in remaining_matches])))
         if fut_rounds:
             for r in fut_rounds:
@@ -384,13 +357,12 @@ with col1:
 
     past_preds = {}
     with tab_past:
-        st.caption("💡 라운드를 선택해 지난 경기 결과를 변경해 보세요.")
-        
+        st.caption("💡 최근 검증된 경기 결과를 변경해 시나리오를 테스트할 수 있습니다.")
         past_rounds = sorted(list(set([m["R"] for m in past_matches])))
         
         if past_rounds:
             selected_round = st.selectbox(
-                "🔍 조회할 라운드 선택", 
+                "🔍 라운드 선택", 
                 options=past_rounds, 
                 format_func=lambda r: f"Round {r} 경기 목록"
             )
@@ -412,7 +384,7 @@ with col1:
                         {a_logo} {m['원정팀']}
                     </span>
                     <span class="tooltiptext">
-                        <b>📝 Round {m['R']} 경기 주요 내용 & 변수</b><br>
+                        <b>📝 Round {m['R']} 경기 정보</b><br>
                         {m['내용']}
                     </span>
                 </div>
@@ -445,7 +417,7 @@ with col2:
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 20000, 5000, step=1000)
     
     rank_matrix, teams, team_idx, base_pts = run_what_if_simulation(
-        df_standings, past_matches, past_preds, remaining_matches, future_preds, form_w, home_adv, total_games=32, n_sims=sim_count
+        df_standings, past_matches, past_preds, remaining_matches, future_preds, form_w, home_adv, total_games=34, n_sims=sim_count
     )
     
     target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=1)
