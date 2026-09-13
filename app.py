@@ -37,7 +37,7 @@ def load_matches_csv():
         if os.path.exists(p):
             df = pd.read_csv(p)
             
-            # 사용자 업로드 파일 형식 컬럼 표준화 매핑
+            # 사용자 업로드 파일 형식(kleague2_robin1_and_2_results.csv) 컬럼 표준화 매핑
             if '홈팀 점수' in df.columns and '홈 스코어' not in df.columns:
                 df['홈 스코어'] = df['홈팀 점수']
             if '원정팀 점수' in df.columns and '원정 스코어' not in df.columns:
@@ -73,10 +73,10 @@ def build_standings_df(completed):
     teams = sorted(list(set(matches_df['홈팀']).union(set(matches_df['원정팀']))))
     stats = {t: {'팀': t, '승점': 0, '경기수': 0, '승': 0, '무': 0, '패': 0, '득점': 0, '실점': 0} for t in teams}
     
-    for row in completed.itertuples():
-        h, a = row.홈팀, row.원정팀
-        gh = int(row.홈 스코어) if hasattr(row, '홈 스코어') else int(row._4)
-        ga = int(row.원정 스코어) if hasattr(row, '원정 스코어') else int(row._5)
+    # iterrows()를 사용하여 띄어쓰기가 있는 컬럼명을 안전하게 호출
+    for _, row in completed.iterrows():
+        h, a = row['홈팀'], row['원정팀']
+        gh, ga = int(row['홈 스코어']), int(row['원정 스코어'])
         
         stats[h]['경기수'] += 1; stats[a]['경기수'] += 1
         stats[h]['득점'] += gh; stats[h]['실점'] += ga
@@ -112,20 +112,19 @@ def run_fast_bayesian_simulation(completed, scheduled, past_user_choices_tuple, 
     total_ga = np.zeros(n_teams)
     
     # 과거 경기 What-If 반영
-    for row in completed.itertuples():
-        m_id = f"{row.라운드}_{row.홈팀}_{row.원정팀}"
-        h_i, a_i = team_idx[row.홈팀], team_idx[row.원정팀]
-        o_h = int(row.홈 스코어) if hasattr(row, '홈 스코어') else int(row._4)
-        o_a = int(row.원정 스코어) if hasattr(row, '원정 스코어') else int(row._5)
+    for _, row in completed.iterrows():
+        m_id = f"{row['라운드']}_{row['홈팀']}_{row['원정팀']}"
+        h_i, a_i = team_idx[row['홈팀']], team_idx[row['원정팀']]
+        o_h, o_a = int(row['홈 스코어']), int(row['원정 스코어'])
         
         games_played[h_i] += 1; games_played[a_i] += 1
         total_gf[h_i] += o_h; total_ga[h_i] += o_a
         total_gf[a_i] += o_a; total_ga[a_i] += o_h
         
         choice = past_user_choices.get(m_id, "실제 결과")
-        if choice == f"🏠 {row.홈팀} 승": base_pts[h_i] += 3
+        if choice == f"🏠 {row['홈팀']} 승": base_pts[h_i] += 3
         elif choice == "🔺 무승부": base_pts[h_i] += 1; base_pts[a_i] += 1
-        elif choice == f"✈️ {row.원정팀} 승": base_pts[a_i] += 3
+        elif choice == f"✈️ {row['원정팀']} 승": base_pts[a_i] += 3
         else:
             if o_h > o_a: base_pts[h_i] += 3
             elif o_h == o_a: base_pts[h_i] += 1; base_pts[a_i] += 1
@@ -146,9 +145,9 @@ def run_fast_bayesian_simulation(completed, scheduled, past_user_choices_tuple, 
     
     # 잔여 경기 일괄 병렬 연산 (예정 경기가 있는 경우)
     if not scheduled.empty:
-        for row in scheduled.itertuples():
-            f_id = f"{row.라운드}_{row.홈팀}_{row.원정팀}"
-            h_i, a_i = team_idx[row.홈팀], team_idx[row.원정팀]
+        for _, row in scheduled.iterrows():
+            f_id = f"{row['라운드']}_{row['홈팀']}_{row['원정팀']}"
+            h_i, a_i = team_idx[row['홈팀']], team_idx[row['원정팀']]
             choice = future_user_choices.get(f_id, "🎲 베이지안 자동")
             
             if choice == "🎲 베이지안 자동":
@@ -161,9 +160,9 @@ def run_fast_bayesian_simulation(completed, scheduled, past_user_choices_tuple, 
                 pts_sim[:, h_i] += np.where(g_h > g_a, 3, np.where(g_h == g_a, 1, 0))
                 pts_sim[:, a_i] += np.where(g_a > g_h, 3, np.where(g_h == g_a, 1, 0))
             else:
-                if f"🏠 {row.홈팀} 승" in choice: pts_sim[:, h_i] += 3
+                if f"🏠 {row['홈팀']} 승" in choice: pts_sim[:, h_i] += 3
                 elif "🔺 무승부" in choice: pts_sim[:, h_i] += 1; pts_sim[:, a_i] += 1
-                elif f"✈️ {row.원정팀} 승" in choice: pts_sim[:, a_i] += 3
+                elif f"✈️ {row['원정팀']} 승" in choice: pts_sim[:, a_i] += 3
 
     # C-level NumPy 2D 정렬
     composite_score = pts_sim * 1000000.0 + total_gf[None, :] * 1000.0 + (total_gf - total_ga)[None, :]
@@ -258,8 +257,7 @@ with col1:
         else:
             for _, m in filtered_past.iterrows():
                 m_id = f"{m['라운드']}_{m['홈팀']}_{m['원정팀']}"
-                gh = int(m['홈 스코어']) if hasattr(m, '홈 스코어') else int(m._4)
-                ga = int(m['원정 스코어']) if hasattr(m, '원정 스코어') else int(m._5)
+                gh, ga = int(m['홈 스코어']), int(m['원정 스코어'])
                 st.markdown(f"**{m['홈팀']} {gh} : {ga} {m['원정팀']}**")
                 choice = st.radio(
                     label=f"past_radio_{m_id}",
