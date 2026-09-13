@@ -1,4 +1,4 @@
-```python
+python
 # -*- coding: utf-8 -*-
 """
 K리그2 What-if 순위 시뮬레이터
