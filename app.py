@@ -34,15 +34,16 @@ st.markdown("""
 # ---------------------------------------------------------
 @st.cache_data
 def load_and_preprocess_data(csv_path='matches.csv'):
-    # 1. 인코딩 예외 처리
+    # 1. 구분자 자동 감지 + 인코딩 예외 처리
+    #    (matches.csv가 탭(TSV)으로 저장되어 있든 콤마(CSV)로 저장되어 있든 모두 대응)
     try:
-        df = pd.read_csv(csv_path, encoding='utf-8-sig')
+        df = pd.read_csv(csv_path, sep=None, engine='python', encoding='utf-8-sig')
     except Exception:
-        df = pd.read_csv(csv_path, encoding='cp949')
+        df = pd.read_csv(csv_path, sep=None, engine='python', encoding='cp949')
 
     # 2. 위치(Positional) 기반 강제 컬럼 재할당 (KeyError 원천 차단)
     standard_columns = ['로빈', '라운드', '홈팀', '홈팀 점수', '원정팀 점수', '원정팀', '경기결과', '경기상태']
-    
+
     if len(df.columns) >= 8:
         df = df.iloc[:, :8]
         df.columns = standard_columns
@@ -60,6 +61,17 @@ def load_and_preprocess_data(csv_path='matches.csv'):
             elif '라운드' in c: mapping[c] = '라운드'
             elif '로빈' in c: mapping[c] = '로빈'
         df = df.rename(columns=mapping)
+
+    # 2-1. 안전장치: 필수 컬럼이 모두 존재하는지 검증
+    #      (CSV 형식이 예상과 다르면 여기서 즉시 에러 메시지로 알려줌)
+    required_cols = set(standard_columns)
+    if not required_cols.issubset(set(df.columns)):
+        missing = required_cols - set(df.columns)
+        raise ValueError(
+            f"필수 컬럼을 찾을 수 없습니다: {missing}\n"
+            f"현재 인식된 컬럼: {df.columns.tolist()}\n"
+            f"matches.csv의 구분자(콤마/탭 등)와 헤더를 확인해주세요."
+        )
 
     # 3. 데이터 내부 따옴표 및 공백 정리
     for col in df.columns:
