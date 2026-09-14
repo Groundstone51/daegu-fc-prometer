@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 팀명 표준화 및 엠블럼 매핑 (수원 삼성 블루윙즈 표준 적용)
+# 2. 팀명 표준화 및 엠블럼 매핑
 TEAM_NAME_MAP = {
     "수원 삼성": "수원 삼성 블루윙즈", "수원 삼성 블루윙즈": "수원 삼성 블루윙즈",
     "부산 아이파크": "부산 아이파크",
@@ -239,11 +239,11 @@ def fetch_data_from_csv(file_path="matches.csv"):
 df_standings, past_matches, remaining_matches = fetch_data_from_csv("matches.csv")
 
 st.title("⚽ K리그2 순수 베이지안 승격 시뮬레이터")
-st.caption("🔮 감마-포아송 베이지안 추론(Gamma-Poisson Bayesian Inference) 기반 시뮬레이션")
+st.caption("🔮 감마-포아송 베이지안 추론(Gamma-Poisson Bayesian Inference) 기반 몬테카를로 시뮬레이션")
 st.divider()
 
-# 5. 순수 베이지안 몬테카를로 시뮬레이션 엔진
-def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, future_preds, n_sims=5000):
+# 5. 베이지안 몬테카를로 시뮬레이션 엔진 (32경기 풀시즌 교정)
+def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, future_preds, total_games=32, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
     n_teams = len(teams)
@@ -290,6 +290,7 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
     gf_sim = np.tile(df['득점'].values.astype(np.float64), (n_sims, 1))
     ga_sim = np.tile(df['실점'].values.astype(np.float64), (n_sims, 1))
 
+    # CSV에 지정된 명시적 잔여 경기 시뮬레이션
     for m_idx, match in enumerate(future_schedule):
         home_team = match["홈팀"]
         away_team = match["원정팀"]
@@ -321,6 +322,28 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
                 pts_sim[:, a_i] += 1
             elif f"✈️ {away_team} 승" in choice:
                 pts_sim[:, a_i] += 3
+
+        games_played[h_i] += 1
+        games_played[a_i] += 1
+
+    # CSV에 없는 남은 리그 경기(32경기 완주) 베이지안 무작위 대진 시뮬레이션
+    for i in range(n_teams):
+        rem_n = int(total_games - games_played[i])
+        if rem_n > 0:
+            opponents = np.random.choice([j for j in range(n_teams) if j != i], size=(rem_n, n_sims))
+            exp_i = lambda_att[:, i] * lambda_def[np.arange(n_sims), opponents]
+            exp_opp = lambda_att[np.arange(n_sims), opponents] * lambda_def[:, i]
+            
+            goals_i = np.random.poisson(exp_i)
+            goals_opp = np.random.poisson(exp_opp)
+            
+            pts_gained = np.where(goals_i > goals_opp, 3, np.where(goals_i == goals_opp, 1, 0)).sum(axis=0)
+            gf_gained = goals_i.sum(axis=0)
+            ga_gained = goals_opp.sum(axis=0)
+            
+            pts_sim[:, i] += pts_gained
+            gf_sim[:, i] += gf_gained
+            ga_sim[:, i] += ga_gained
 
     gd_sim = gf_sim - ga_sim
     rank_matrix = np.zeros((n_sims, n_teams))
@@ -439,7 +462,7 @@ with col2:
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 20000, 5000, step=1000)
     
     rank_matrix, teams, team_idx, base_pts = run_bayesian_simulation(
-        df_standings, past_matches, past_preds, remaining_matches, future_preds, n_sims=sim_count
+        df_standings, past_matches, past_preds, remaining_matches, future_preds, total_games=32, n_sims=sim_count
     )
     
     target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
