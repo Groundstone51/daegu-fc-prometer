@@ -12,9 +12,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 팀명 표준화 및 엠블럼 매핑
+# 2. 팀명 표준화 및 엠블럼 매핑 (수원 삼성 블루윙즈 표준 적용)
 TEAM_NAME_MAP = {
-    "수원 삼성": "수원 삼성", "수원 삼성 블루윙즈": "수원 삼성",
+    "수원 삼성": "수원 삼성 블루윙즈", "수원 삼성 블루윙즈": "수원 삼성 블루윙즈",
     "부산 아이파크": "부산 아이파크",
     "대구 FC": "대구 FC",
     "수원 FC": "수원 FC",
@@ -34,7 +34,7 @@ TEAM_NAME_MAP = {
 }
 
 LOGO_MAP = {
-    "수원 삼성": "suwon_samsung.png",
+    "수원 삼성 블루윙즈": "suwon_samsung.png",
     "부산 아이파크": "busan.png",
     "대구 FC": "daegu.png",
     "수원 FC": "suwon_fc.png",
@@ -54,7 +54,7 @@ LOGO_MAP = {
 }
 
 VENUE_MAP = {
-    "수원 삼성": "수원월드컵경기장",
+    "수원 삼성 블루윙즈": "수원월드컵경기장",
     "부산 아이파크": "부산아시아드주경기장",
     "대구 FC": "DGB대구은행파크",
     "수원 FC": "수원종합운동장",
@@ -157,7 +157,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. matches.csv 데이터 파싱 및 정규화
+# 4. matches.csv 데이터 파싱
 @st.cache_data(ttl=300)
 def fetch_data_from_csv(file_path="matches.csv"):
     if not os.path.exists(file_path):
