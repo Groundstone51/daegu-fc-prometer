@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
+from bs4 import BeautifulSoup
 from scipy.optimize import minimize
 from scipy.stats import poisson
 import matplotlib.pyplot as plt
@@ -30,18 +32,73 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 100% 절대 실패하지 않는 컬럼 강제 재정의 전처리 로더
+# 1. 네이버 스포츠 / K리그2 자동 크롤링 함수
+# ---------------------------------------------------------
+def fetch_kleague2_schedule_online():
+    """
+    네이버 스포츠 K리그2 일정 API/크롤링을 통해 최신 경기 및 잔여 일정을 수집합니다.
+    """
+    url = "https://sports.news.naver.com/kfootball/schedule/index?category=kleague2"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    try:
+        # 네이버 스포츠 내부 일정 API 호출 (JSON 데이터 파싱)
+        api_url = "https://sports.news.naver.com/schedule/scoreBoard.nhn?category=kleague2"
+        response = requests.get(api_url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            rows = []
+            for date_data in data.get('mFootballScheduleList', []):
+                for game in date_data.get('games', []):
+                    home = game.get('homeTeamName', '').strip()
+                    away = game.get('awayTeamName', '').strip()
+                    h_score = game.get('homeTeamScore', None)
+                    a_score = game.get('awayTeamScore', None)
+                    status_str = game.get('gameState', '') # RESULT, BEFORE, CANCEL 등
+                    
+                    status = '종료' if status_str in ['RESULT', 'END'] or (h_score is not None and str(h_score).isdigit()) else '예정'
+                    result_str = ''
+                    if status == '종료' and h_score is not None and a_score is not None:
+                        hs, as_ = int(h_score), int(a_score)
+                        if hs > as_: result_str = '홈팀 승'
+                        elif hs < as_: result_str = '원정팀 승'
+                        else: result_str = '무승부'
+
+                    rows.append({
+                        '로빈': '1로빈',
+                        '라운드': f"{game.get('round', 0)}라운드",
+                        '홈팀': home,
+                        '홈팀 점수': h_score if status == '종료' else None,
+                        '원정팀 점수': a_score if status == '종료' else None,
+                        '원정팀': away,
+                        '경기결과': result_str,
+                        '경기상태': status
+                    })
+            if rows:
+                return pd.DataFrame(rows)
+    except Exception as e:
+        st.sidebar.warning(f"인터넷 크롤링 중 오류 발생: {e}")
+    return None
+
+# ---------------------------------------------------------
+# 2. 통합 데이터 로더 (로컬 CSV + 인터넷 크롤링 하이브리드)
 # ---------------------------------------------------------
 @st.cache_data
-def load_and_preprocess_data(csv_path='matches.csv'):
-    # 1. 구분자 자동 감지 + 인코딩 예외 처리
-    #    (matches.csv가 탭(TSV)으로 저장되어 있든 콤마(CSV)로 저장되어 있든 모두 대응)
-    try:
-        df = pd.read_csv(csv_path, sep=None, engine='python', encoding='utf-8-sig')
-    except Exception:
-        df = pd.read_csv(csv_path, sep=None, engine='python', encoding='cp949')
+def load_and_preprocess_data(csv_path='matches.csv', use_online=False):
+    df = None
+    if use_online:
+        df_online = fetch_kleague2_schedule_online()
+        if df_online is not None and not df_online.empty:
+            df = df_online
+            st.sidebar.success("🌐 인터넷(네이버 스포츠)에서 최신 일정을 성공적으로 불러왔습니다!")
 
-    # 2. 위치(Positional) 기반 강제 컬럼 재할당 (KeyError 원천 차단)
+    if df is None:
+        try:
+            df = pd.read_csv(csv_path, sep=None, engine='python', encoding='utf-8-sig')
+        except Exception:
+            df = pd.read_csv(csv_path, sep=None, engine='python', encoding='cp949')
+
     standard_columns = ['로빈', '라운드', '홈팀', '홈팀 점수', '원정팀 점수', '원정팀', '경기결과', '경기상태']
 
     if len(df.columns) >= 8:
@@ -62,30 +119,24 @@ def load_and_preprocess_data(csv_path='matches.csv'):
             elif '로빈' in c: mapping[c] = '로빈'
         df = df.rename(columns=mapping)
 
-    # 2-1. 안전장치: 필수 컬럼이 모두 존재하는지 검증
-    #      (CSV 형식이 예상과 다르면 여기서 즉시 에러 메시지로 알려줌)
-    required_cols = set(standard_columns)
-    if not required_cols.issubset(set(df.columns)):
-        missing = required_cols - set(df.columns)
-        raise ValueError(
-            f"필수 컬럼을 찾을 수 없습니다: {missing}\n"
-            f"현재 인식된 컬럼: {df.columns.tolist()}\n"
-            f"matches.csv의 구분자(콤마/탭 등)와 헤더를 확인해주세요."
-        )
+    if '경기상태' not in df.columns:
+        df['경기상태'] = '종료'
 
-    # 3. 데이터 내부 따옴표 및 공백 정리
     for col in df.columns:
         if df[col].dtype == 'object':
             df[col] = df[col].astype(str).str.replace("'", "").str.replace('"', '').str.strip()
 
-    # 4. 점수 수치형 변환
     df['홈팀 점수'] = pd.to_numeric(df['홈팀 점수'], errors='coerce')
     df['원정팀 점수'] = pd.to_numeric(df['원정팀 점수'], errors='coerce')
 
     return df
 
+# 사이드바 크롤링 동기화 버튼
+st.sidebar.title("⚙️ 데이터 설정")
+use_online_sync = st.sidebar.button("🌐 인터넷 최신 잔여 일정 동기화")
+
 try:
-    df = load_and_preprocess_data()
+    df = load_and_preprocess_data(use_online=use_online_sync)
 except Exception as e:
     st.error(f"matches.csv 파일 로드 중 오류가 발생했습니다: {e}")
     st.stop()
