@@ -12,49 +12,73 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 팀명 및 매핑
+# 2. 팀명 표준화 및 엠블럼 매핑
+TEAM_NAME_MAP = {
+    "수원 삼성": "수원 삼성", "수원 삼성 블루윙즈": "수원 삼성",
+    "부산 아이파크": "부산 아이파크",
+    "대구 FC": "대구 FC",
+    "수원 FC": "수원 FC",
+    "서울 이랜드": "서울 이랜드", "서울 이랜드 FC": "서울 이랜드",
+    "화성 FC": "화성 FC",
+    "김포 FC": "김포 FC",
+    "충남 아산": "충남 아산", "충남 아산 FC": "충남 아산",
+    "용인 FC": "용인 FC",
+    "경남 FC": "경남 FC",
+    "파주 프런티어": "파주 프런티어", "파주 프런티어 FC": "파주 프런티어",
+    "성남 FC": "성남 FC",
+    "안산 그리너스": "안산 그리너스", "안산 그리너스 FC": "안산 그리너스",
+    "천안 시티": "천안 시티", "천안 시티 FC": "천안 시티",
+    "전남 드래곤즈": "전남 드래곤즈",
+    "충북 청주": "충북 청주", "충북 청주 FC": "충북 청주",
+    "김해 FC": "김해 FC", "김해 FC 2008": "김해 FC"
+}
+
 LOGO_MAP = {
-    "안산 그리너스": "ansan.png", "안산 그리너스 FC": "ansan.png",
+    "수원 삼성": "suwon_samsung.png",
     "부산 아이파크": "busan.png",
-    "천안 시티": "cheonan.png", "천안 시티 FC": "cheonan.png",
-    "충북 청주": "chungbukcheongju.png", "충북 청주 FC": "chungbukcheongju.png",
-    "충남 아산": "chungnamasan.png", "충남 아산 FC": "chungnamasan.png",
     "대구 FC": "daegu.png",
-    "김해 FC": "gimhae.png", "김해 FC 2008": "gimhae.png",
-    "김포 FC": "gimpo.png",
-    "경남 FC": "gyeongnam.png",
-    "화성 FC": "hwasung.png",
-    "전남 드래곤즈": "jeonnam.png",
-    "파주 프런티어": "paju.png", "파주 프런티어 FC": "paju.png",
-    "성남 FC": "seongnam.png",
-    "서울 이랜드": "seoul.png", "서울 이랜드 FC": "seoul.png",
     "수원 FC": "suwon_fc.png",
-    "수원 삼성": "suwon_samsung.png", "수원 삼성 블루윙즈": "suwon_samsung.png",
-    "용인 FC": "yongin.png"
+    "서울 이랜드": "seoul.png",
+    "화성 FC": "hwasung.png",
+    "김포 FC": "gimpo.png",
+    "충남 아산": "chungnamasan.png",
+    "용인 FC": "yongin.png",
+    "경남 FC": "gyeongnam.png",
+    "파주 프런티어": "paju.png",
+    "성남 FC": "seongnam.png",
+    "안산 그리너스": "ansan.png",
+    "천안 시티": "cheonan.png",
+    "전남 드래곤즈": "jeonnam.png",
+    "충북 청주": "chungbukcheongju.png",
+    "김해 FC": "gimhae.png"
 }
 
 VENUE_MAP = {
-    "수원 삼성": "수원월드컵경기장", "수원 삼성 블루윙즈": "수원월드컵경기장",
+    "수원 삼성": "수원월드컵경기장",
     "부산 아이파크": "부산아시아드주경기장",
     "대구 FC": "DGB대구은행파크",
     "수원 FC": "수원종합운동장",
-    "서울 이랜드": "목동종합운동장", "서울 이랜드 FC": "목동종합운동장",
+    "서울 이랜드": "목동종합운동장",
     "화성 FC": "화성종합경기타운",
     "김포 FC": "솔터축구전용구장",
-    "충남 아산": "이순신종합운동장", "충남 아산 FC": "이순신종합운동장",
+    "충남 아산": "이순신종합운동장",
     "용인 FC": "용인미르스타디움",
     "경남 FC": "창원축구센터",
-    "파주 프런티어": "파주스타디움", "파주 프런티어 FC": "파주스타디움",
+    "파주 프런티어": "파주스타디움",
     "성남 FC": "탄천종합운동장",
-    "안산 그리너스": "안산와~스타디움", "안산 그리너스 FC": "안산와~스타디움",
-    "천안 시티": "천안종합운동장", "천안 시티 FC": "천안종합운동장",
+    "안산 그리너스": "안산와~스타디움",
+    "천안 시티": "천안종합운동장",
     "전남 드래곤즈": "광양축구전용구장",
-    "충북 청주": "청주종합경기장", "충북 청주 FC": "청주종합경기장",
-    "김해 FC": "김해운동장", "김해 FC 2008": "김해운동장"
+    "충북 청주": "청주종합경기장",
+    "김해 FC": "김해운동장"
 }
 
+def normalize_team(name):
+    clean_name = str(name).strip()
+    return TEAM_NAME_MAP.get(clean_name, clean_name)
+
 def get_logo_html(team_name, size=22):
-    file_name = LOGO_MAP.get(team_name)
+    file_name = LOGO_MAP.get(normalize_team(team_name))
     if file_name:
         possible_paths = [file_name, os.path.join("emblem", file_name)]
         for path in possible_paths:
@@ -133,7 +157,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. matches.csv 데이터 파싱
+# 4. matches.csv 데이터 파싱 및 정규화
 @st.cache_data(ttl=300)
 def fetch_data_from_csv(file_path="matches.csv"):
     if not os.path.exists(file_path):
@@ -147,8 +171,8 @@ def fetch_data_from_csv(file_path="matches.csv"):
     team_stats = {}
 
     for idx, row in df_matches.iterrows():
-        h = str(row["홈팀"]).strip()
-        a = str(row["원정팀"]).strip()
+        h = normalize_team(row["홈팀"])
+        a = normalize_team(row["원정팀"])
         r_str = str(row.get("라운드", "0라운드"))
         r_num = int(''.join(filter(str.isdigit, r_str)) or 0)
         
@@ -215,11 +239,11 @@ def fetch_data_from_csv(file_path="matches.csv"):
 df_standings, past_matches, remaining_matches = fetch_data_from_csv("matches.csv")
 
 st.title("⚽ K리그2 순수 베이지안 승격 시뮬레이터")
-st.caption("🔮 감마-포아송 베이지안 추론(Gamma-Poisson Bayesian Inference) 기반 몬테카를로 시뮬레이션 엔진 연동")
+st.caption("🔮 감마-포아송 베이지안 추론(Gamma-Poisson Bayesian Inference) 기반 시뮬레이션")
 st.divider()
 
 # 5. 순수 베이지안 몬테카를로 시뮬레이션 엔진
-def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, future_preds, total_games=32, n_sims=5000):
+def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, future_preds, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
     n_teams = len(teams)
@@ -227,7 +251,6 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
     
     pts_mod = np.zeros(n_teams)
     
-    # What-If 경기 결과 수정 반영
     for m in past_list:
         if m["홈팀"] not in team_idx or m["원정팀"] not in team_idx:
             continue
@@ -253,23 +276,19 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
     base_pts = df['승점'].values.astype(np.float64) + pts_mod
     games_played = df['경기수'].values.copy()
     
-    # 베이지안 사전 분포 (Prior Params: Gamma(alpha, beta))
-    prior_alpha = 2.0
-    prior_beta = 1.5
+    prior_alpha, prior_beta = 2.0, 1.5
     
     post_alpha_att = prior_alpha + df['득점'].values
     post_beta_att = prior_beta + games_played
-    
     post_alpha_def = prior_alpha + df['실점'].values
     post_beta_def = prior_beta + games_played
+
+    lambda_att = np.random.gamma(post_alpha_att, 1.0 / post_beta_att, size=(n_sims, n_teams))
+    lambda_def = np.random.gamma(post_alpha_def, 1.0 / post_beta_def, size=(n_sims, n_teams))
 
     pts_sim = np.tile(base_pts, (n_sims, 1))
     gf_sim = np.tile(df['득점'].values.astype(np.float64), (n_sims, 1))
     ga_sim = np.tile(df['실점'].values.astype(np.float64), (n_sims, 1))
-
-    # 베이지안 샘플링 (Posterior Sampling for Attack/Defense Strength)
-    lambda_att = np.random.gamma(post_alpha_att, 1.0 / post_beta_att, size=(n_sims, n_teams))
-    lambda_def = np.random.gamma(post_alpha_def, 1.0 / post_beta_def, size=(n_sims, n_teams))
 
     for m_idx, match in enumerate(future_schedule):
         home_team = match["홈팀"]
@@ -282,20 +301,18 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
         choice = future_preds.get(m_idx, "🎲 베이지안 추론")
         
         if choice == "🎲 베이지안 추론":
-            # 베이지안 사후 기대 득점 산출
             exp_h = lambda_att[:, h_i] * lambda_def[:, a_i]
             exp_a = lambda_att[:, a_i] * lambda_def[:, h_i]
             
-            sim_h_goals = np.random.poisson(exp_h)
-            sim_a_goals = np.random.poisson(exp_a)
+            sim_h = np.random.poisson(exp_h)
+            sim_a = np.random.poisson(exp_a)
             
-            pts_sim[:, h_i] += np.where(sim_h_goals > sim_a_goals, 3, np.where(sim_h_goals == sim_a_goals, 1, 0))
-            pts_sim[:, a_i] += np.where(sim_a_goals > sim_h_goals, 3, np.where(sim_h_goals == sim_a_goals, 1, 0))
-            
-            gf_sim[:, h_i] += sim_h_goals
-            ga_sim[:, h_i] += sim_a_goals
-            gf_sim[:, a_i] += sim_a_goals
-            ga_sim[:, a_i] += sim_h_goals
+            pts_sim[:, h_i] += np.where(sim_h > sim_a, 3, np.where(sim_h == sim_a, 1, 0))
+            pts_sim[:, a_i] += np.where(sim_a > sim_h, 3, np.where(sim_h == sim_a, 1, 0))
+            gf_sim[:, h_i] += sim_h
+            ga_sim[:, h_i] += sim_a
+            gf_sim[:, a_i] += sim_a
+            ga_sim[:, a_i] += sim_h
         else:
             if f"🏠 {home_team} 승" in choice:
                 pts_sim[:, h_i] += 3
@@ -304,19 +321,6 @@ def run_bayesian_simulation(df_base, past_list, past_preds, future_schedule, fut
                 pts_sim[:, a_i] += 1
             elif f"✈️ {away_team} 승" in choice:
                 pts_sim[:, a_i] += 3
-
-        games_played[h_i] += 1
-        games_played[a_i] += 1
-
-    # 나머지 미배정 경기 베이지안 시뮬레이션
-    for i in range(n_teams):
-        rem = total_games - games_played[i]
-        if rem > 0:
-            exp_g = lambda_att[:, i]
-            sim_goals = np.random.poisson(exp_g, size=(int(rem), n_sims)).T
-            # 기대 승점 계산
-            sim_pts = np.where(sim_goals >= 2, 3, np.where(sim_goals == 1, 1, 0)).sum(axis=1)
-            pts_sim[:, i] += sim_pts
 
     gd_sim = gf_sim - ga_sim
     rank_matrix = np.zeros((n_sims, n_teams))
@@ -435,24 +439,21 @@ with col2:
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 20000, 5000, step=1000)
     
     rank_matrix, teams, team_idx, base_pts = run_bayesian_simulation(
-        df_standings, past_matches, past_preds, remaining_matches, future_preds, total_games=32, n_sims=sim_count
+        df_standings, past_matches, past_preds, remaining_matches, future_preds, n_sims=sim_count
     )
     
     target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
     target_i = team_idx[target_team]
     target_ranks = rank_matrix[:, target_i]
     
-    # 베이지안 확률 계산
-    r1_p = (np.sum(target_ranks == 1) / sim_count) * 100
-    r2_p = (np.sum(target_ranks == 2) / sim_count) * 100
-    r3_6_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
+    direct_p = (np.sum(target_ranks <= 2) / sim_count) * 100
+    po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
+    total_promotion_p = direct_p + po_p
     
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"{target_team} 1위 확률", f"{r1_p:.1f}%")
-    m2.metric(f"{target_team} 2위 확률", f"{r2_p:.1f}%")
-    m3.metric(f"{target_team} 3~6위 (PO권)", f"{r3_6_p:.1f}%")
-    
-    st.markdown(f"**💡 총 승격/PO 가능권(1~6위) 사후 확률:** `{r1_p + r2_p + r3_6_p:.1f}%`")
+    m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
+    m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
+    m3.metric("총 승격 가시권 (1~6위)", f"{total_promotion_p:.1f}%")
     
     rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
     rank_counts = rank_df["예상 최종 순위"].value_counts().reset_index()
