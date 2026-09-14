@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling
+# Custom Styling (unsafe_allow_html=True 로 수정 완료)
 st.markdown("""
 <style>
     .main-header {
@@ -36,13 +36,13 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 </style>
-""", unsafe_allow_dict=True)
+""", unsafe_allow_html=True)
 
 # Data Loading with Caching & Column Cleaning
 @st.cache_data
 def load_data(csv_path='matches.csv'):
     df = pd.read_csv(csv_path)
-    # 컬럼명에 불필요한 따옴표(') 및 양끝 공백 제거 (KeyError 방지)
+    # 컬럼명에 불필요한 따옴표(') 및 양끝 공백 제거
     df.columns = df.columns.str.replace("'", "").str.replace('"', '').str.strip()
     return df
 
@@ -99,16 +99,11 @@ def fit_bayesian_poisson_model(df_finished, prior_std=1.0):
     
     res = minimize(neg_log_posterior, init_params, method='L-BFGS-B')
     
-    mu_opt = res.x[0]
-    h_adv_opt = res.x[1]
-    att_opt = res.x[2:2+n_teams]
-    def_opt = res.x[2+n_teams:]
-    
     return {
-        'mu': mu_opt,
-        'h_adv': h_adv_opt,
-        'att': att_opt,
-        'def': def_opt
+        'mu': res.x[0],
+        'h_adv': res.x[1],
+        'att': res.x[2:2+n_teams],
+        'def': res.x[2+n_teams:]
     }
 
 bayes_model = fit_bayesian_poisson_model(finished_df)
@@ -183,8 +178,8 @@ section = st.sidebar.radio(
 # SECTION 1: 지난 경기 정보 요약
 # ---------------------------------------------------------
 if section == "📊 지난 경기 정보 요약":
-    st.markdown("<div class='main-header'>📊 지난 경기 정보 요약</div>", unsafe_allow_dict=True)
-    st.markdown("<div class='sub-header'>현재 리그 순위 및 완료된 경기들의 핵심 통계를 확인합니다.</div>", unsafe_allow_dict=True)
+    st.markdown("<div class='main-header'>📊 지난 경기 정보 요약</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>현재 리그 순위 및 완료된 경기들의 핵심 통계를 확인합니다.</div>", unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -208,16 +203,6 @@ if section == "📊 지난 경기 정보 요약":
     with col_a:
         st.subheader("🔵 대구 FC 최근 경기 결과")
         daegu_finished = finished_df[(finished_df['홈팀'] == '대구 FC') | (finished_df['원정팀'] == '대구 FC')].tail(10)
-        
-        def highlight_result(val):
-            if val == '대구 FC 승':
-                return 'background-color: #d4edda; color: #155724;'
-            elif val == '무승부':
-                return 'background-color: #fff3cd; color: #856404;'
-            else:
-                return 'background-color: #f8d7da; color: #721c24;'
-                
-        # Format results for Daegu
         daegu_finished_display = daegu_finished[['라운드', '홈팀', '홈팀 점수', '원정팀 점수', '원정팀']].copy()
         st.dataframe(daegu_finished_display, use_container_width=True)
         
@@ -244,14 +229,13 @@ if section == "📊 지난 경기 정보 요약":
 # SECTION 2: 다음 경기 예측
 # ---------------------------------------------------------
 elif section == "⚽ 다음 경기 예측":
-    st.markdown("<div class='main-header'>⚽ 다음 경기 예측 (베이지안 포아송 모델)</div>", unsafe_allow_dict=True)
-    st.markdown("<div class='sub-header'>팀의 최근 공격/수비력과 홈 이점을 고려한 베이지안 승부 예측 시뮬레이션입니다.</div>", unsafe_allow_dict=True)
+    st.markdown("<div class='main-header'>⚽ 다음 경기 예측 (베이지안 포아송 모델)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>팀의 최근 공격/수비력과 홈 이점을 고려한 베이지안 승부 예측 시뮬레이션입니다.</div>", unsafe_allow_html=True)
     
     st.subheader("📌 경기 선택")
     
     col_sel1, col_sel2 = st.columns(2)
     with col_sel1:
-        # Check upcoming match for Daegu
         daegu_next = remaining_df[(remaining_df['홈팀'] == '대구 FC') | (remaining_df['원정팀'] == '대구 FC')]
         if len(daegu_next) > 0:
             default_home = daegu_next.iloc[0]['홈팀']
@@ -307,14 +291,13 @@ elif section == "⚽ 다음 경기 예측":
 # SECTION 3: 대구 FC 승격 가능성 예측
 # ---------------------------------------------------------
 elif section == "🏆 대구 FC 승격 가능성 예측":
-    st.markdown("<div class='main-header'>🏆 대구 FC 승격 가능성 및 잔여 경기 시뮬레이션</div>", unsafe_allow_dict=True)
-    st.markdown("<div class='sub-header'>잔여 경기 전체를 베이지안 포아송 몬테카를로 기법으로 수천 회 시뮬레이션하여 최종 순위를 시뮬레이션합니다.</div>", unsafe_allow_dict=True)
+    st.markdown("<div class='main-header'>🏆 대구 FC 승격 가능성 및 잔여 경기 시뮬레이션</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>잔여 경기 전체를 베이지안 포아송 몬테카를로 기법으로 수천 회 시뮬레이션하여 최종 순위를 시뮬레이션합니다.</div>", unsafe_allow_html=True)
     
     n_sims = st.sidebar.slider("몬테카를로 시뮬레이션 횟수", min_value=1000, max_value=10000, value=3000, step=1000)
     
     if st.button("🚀 몬테카를로 시뮬레이션 실행"):
         with st.spinner(f"{n_sims:,}회 잔여 경기 시뮬레이션을 진행하고 있습니다..."):
-            # Simulation calculation
             base_pts = {t: 0 for t in teams}
             base_gf = {t: 0 for t in teams}
             base_ga = {t: 0 for t in teams}
@@ -365,7 +348,7 @@ elif section == "🏆 대구 FC 승격 가능성 예측":
             np.add.at(pts_matrix, (row_indices, rem_h_arr), sim_h_pts)
             np.add.at(pts_matrix, (row_indices, rem_a_arr), sim_a_pts)
             np.add.at(gf_matrix, (row_indices, rem_h_arr), sim_h_goals)
-            np.add.at(gf_matrix, (row_indices, rem_h_arr), sim_a_goals)
+            np.add.at(gf_matrix, (row_indices, rem_a_arr), sim_a_goals)
             np.add.at(ga_matrix, (row_indices, rem_h_arr), sim_a_goals)
             np.add.at(ga_matrix, (row_indices, rem_a_arr), sim_h_goals)
 
@@ -379,7 +362,6 @@ elif section == "🏆 대구 FC 승격 가능성 예측":
             daegu_ranks = ranks[:, daegu_idx]
             daegu_pts = pts_matrix[:, daegu_idx]
 
-            # Promotion Probabilities
             p_1st = np.mean(daegu_ranks == 1) * 100
             p_playoff = np.mean((daegu_ranks >= 2) & (daegu_ranks <= 5)) * 100
             p_total_promo = np.mean(daegu_ranks <= 5) * 100
