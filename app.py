@@ -171,7 +171,6 @@ def fetch_kleague_official_standings():
 @st.cache_data(ttl=300)
 def fetch_past_and_future_matches(file_path="matches.csv"):
     if not os.path.exists(file_path):
-        st.error(f"'{file_path}' 파일을 찾을 수 없습니다. 경로를 확인해 주세요.")
         return [], []
     
     df_matches = pd.read_csv(file_path)
@@ -189,7 +188,7 @@ def fetch_past_and_future_matches(file_path="matches.csv"):
             "원정팀": str(row.get("원정팀", ""))
         }
         
-        # 실제 득점 데이터 존재 여부에 따라 과거/잔여 구분
+        # 실제 득점 데이터 존재 여부에 따라 과거/잔여 경기 자동 구분
         if pd.notna(row.get("실제홈득점")) and pd.notna(row.get("실제원정득점")):
             match_dict["실제홈득점"] = int(row["실제홈득점"])
             match_dict["실제원정득점"] = int(row["실제원정득점"])
@@ -377,18 +376,15 @@ with col1:
                         opt_draw = "🔺 무승부"
                         opt_away = f"✈️ {a_team} 승"
                         
-                        
+                        choice = st.radio(
+                            label=f"r_fut_{r}_{idx}",
+                            options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
+                            horizontal=True,
+                            key=f"radio_fut_r{r}_idx{idx}_g{m_global_idx}_{h_team}_vs_{a_team}",
+                            label_visibility="collapsed"
                         )
                         future_preds[m_global_idx] = choice
                         st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
-# 1. 잔여 경기 탭 (tab_future) 라디오 버튼 key 수정
-choice = st.radio(
-    label=f"r_fut_{r}_{idx}",
-    options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
-    horizontal=True,
-    key=f"radio_fut_r{r}_i{idx}_{h_team}_vs_{a_team}",  # 고유 key 생성
-    label_visibility="collapsed"
-)
 
     past_preds = {}
     with tab_past:
@@ -441,7 +437,7 @@ choice = st.radio(
                     options=[opt_h, opt_d, opt_a],
                     index=default_idx,
                     horizontal=True,
-                    key=f"radio_past_{m['id']}",
+                    key=f"radio_past_r{m['R']}_idx{idx}_id{m.get('id', idx)}",
                     label_visibility="collapsed"
                 )
                 past_preds[m["id"]] = p_choice
