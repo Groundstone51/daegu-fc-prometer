@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import re
 
 # 1. 페이지 설정
 st.set_page_config(
@@ -28,11 +29,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. matches.csv 데이터 로드
+# 3. matches.csv 데이터 로드 (인코딩 및 공백 오류 완벽 방지)
 @st.cache_data(ttl=3600)
 def load_match_data():
     try:
-        df = pd.read_csv('matches.csv')
+        # BOM 문자 및 한글 인코딩 대응
+        try:
+            df = pd.read_csv('matches.csv', encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            df = pd.read_csv('matches.csv', encoding='cp949')
+            
+        # 모든 열 이름의 앞뒤 공백 및 줄바꿈 제거 (KeyError 원인 제거)
+        df.columns = df.columns.str.strip()
+        
         return df
     except Exception as e:
         st.error(f"matches.csv 파일을 불러오는 중 오류가 발생했습니다: {e}")
@@ -43,20 +52,33 @@ df_matches = load_match_data()
 if df_matches.empty:
     st.stop()
 
-# 경기 상태에 따른 분리 (종료 vs 예정)
+# 열 이름 정상 인식 여부 검증
+if '경기상태' not in df_matches.columns:
+    st.error("데이터 파일에 '경기상태' 열이 인식되지 않습니다.")
+    st.write("현재 인식된 열 목록:", df_matches.columns.tolist())
+    st.stop()
+
+# 경기 상태에 따른 분리 (종료 vs 예정) - 값의 공백도 제거하여 매칭
+df_matches['경기상태'] = df_matches['경기상태'].astype(str).str.strip()
 df_finished = df_matches[df_matches['경기상태'] == '종료']
 df_remaining = df_matches[df_matches['경기상태'] == '예정'].reset_index(drop=True)
 
 # 4. 완료된 경기 기반 실시간 순위 산출 함수
 def calculate_standings(finished_df, all_matches_df):
-    teams = sorted(list(set(all_matches_df['홈팀']).union(set(all_matches_df['원정팀']))))
+    # 팀명 앞뒤 공백 제거 통일
+    teams = sorted(list(set(all_matches_df['홈팀'].astype(str).str.strip()).union(set(all_matches_df['원정팀'].astype(str).str.strip()))))
     standings = {t: {'팀': t, '승점': 0, '경기수': 0, '승': 0, '무': 0, '패': 0, '득점': 0, '실점': 0} for t in teams}
     
     for _, row in finished_df.iterrows():
-        h = row['홈팀']
-        a = row['원정팀']
-        hs = int(row['홈팀 점수'])
-        as_ = int(row['원정팀 점수'])
+        h = str(row['홈팀']).strip()
+        a = str(row['원정팀']).strip()
+        
+        # 엑셀에서 넘어온 "2.0" 등 실수형태의 점수를 정수로 안전하게 변환
+        try:
+            hs = int(float(row['홈팀 점수']))
+            as_ = int(float(row['원정팀 점수']))
+        except (ValueError, TypeError):
+            continue  # 점수가 숫자가 아니면 계산 스킵
         
         standings[h]['경기수'] += 1
         standings[a]['경기수'] += 1
@@ -81,6 +103,7 @@ def calculate_standings(finished_df, all_matches_df):
             
     df_calc = pd.DataFrame(list(standings.values()))
     df_calc['득실차'] = df_calc['득점'] - df_calc['실점']
+    # 순위 산정 로직: 1.승점 -> 2.득실차 -> 3.다득점
     df_calc = df_calc.sort_values(by=['승점', '득실차', '득점'], ascending=[False, False, False]).reset_index(drop=True)
     df_calc.index = df_calc.index + 1
     df_calc.insert(0, '순위', df_calc.index)
@@ -88,17 +111,21 @@ def calculate_standings(finished_df, all_matches_df):
 
 df_standings = calculate_standings(df_finished, df_matches)
 
-st.title("⚽ K리그2 정밀 승격 시뮬레이터")
-st.caption(f"총 {len(df_matches)}경기 중 **{len(df_finished)}경기 완료** (실제 결과 반영) | 잔여 **{len(df_remaining)}경기** 직접 예측 및 시뮬레이션")
+st.title("⚽ 2026 K리그2 정밀 승격 시뮬레이터")
+st.caption(f"총 {len(df_matches)}경기 중 **{len(df_finished)}경기 완료** (실제 결과 반영) | 잔여 **{len(df_remaining)}경기** 시뮬레이션")
 st.divider()
 
 # 5. 베이지안 포아송 시뮬레이션 엔진
-def run_simulation(standings_df, finished_df, remaining_df, match_predictions, total_games=32, n_sims=3000):
+def run_simulation(standings_df, finished_df, remaining_df, match_predictions, n_sims=3000):
+    # 팀당 예정된 총 경기 수 자동 파악 (대체로 36경기)
+    team_total_games = df_matches['홈팀'].astype(str).str.strip().value_counts() + df_matches['원정팀'].astype(str).str.strip().value_counts()
+    total_games = int(team_total_games.max()) if not team_total_games.empty else 36
+        
     teams = standings_df['팀'].values
     n_teams = len(teams)
     team_idx = {t: i for i, t in enumerate(teams)}
     
-    # 득실점 기반 전력 지수 산출
+    # 득실점 기반 공격/수비 전력 지수 산출
     avg_gf = np.where(standings_df['경기수'] > 0, standings_df['득점'] / standings_df['경기수'], 1.0).values
     avg_ga = np.where(standings_df['경기수'] > 0, standings_df['실점'] / standings_df['경기수'], 1.0).values
     league_avg_gf = max(avg_gf.mean(), 0.1)
@@ -112,8 +139,8 @@ def run_simulation(standings_df, finished_df, remaining_df, match_predictions, t
     
     # 사용자 잔여 경기 예측 반영
     for m_idx, match in remaining_df.iterrows():
-        home_team = match["홈팀"]
-        away_team = match["원정팀"]
+        home_team = str(match["홈팀"]).strip()
+        away_team = str(match["원정팀"]).strip()
         
         if home_team not in team_idx or away_team not in team_idx:
             continue
@@ -138,19 +165,20 @@ def run_simulation(standings_df, finished_df, remaining_df, match_predictions, t
 
     # 나머지 지정되지 않은 경기의 베이지안 난수 시뮬레이션
     for i in range(n_teams):
-        rem = total_games - games_played[i]
+        rem = int(total_games - games_played[i])
         if rem > 0:
+            # 득점력/실점력을 고려한 홈/어웨이 가중 확률 배분
             p_win = np.clip(0.35 * (att_strength[i] / max(def_strength[i], 0.1)), 0.15, 0.65)
             p_draw = 0.28
             p_loss = 1.0 - p_win - p_draw
             
-            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, int(rem)), p=[p_win, p_draw, p_loss]).sum(axis=1)
+            sim_adds = np.random.choice([3, 1, 0], size=(n_sims, rem), p=[p_win, p_draw, p_loss]).sum(axis=1)
             pts_sim[:, i] += sim_adds
 
     # 최종 순위 매트릭스 계산
     rank_matrix = np.zeros((n_sims, n_teams))
     for s in range(n_sims):
-        order = np.argsort(-pts_sim[s, :])
+        order = np.argsort(-pts_sim[s, :]) # 승점이 높은 순으로 정렬
         for r, t_idx in enumerate(order, start=1):
             rank_matrix[s, t_idx] = r
 
@@ -168,14 +196,20 @@ with col1:
     
     match_preds = {}
     
-    # 라운드별 정리
-    rounds = sorted(list(set(df_remaining['라운드'])), key=lambda x: int(str(x).replace('라운드', '').replace('R', '').strip()))
+    # "27라운드", "27R" 등 문자열을 27 같은 숫자로 파싱하여 라운드 순으로 정렬
+    def parse_round(r_str):
+        numbers = re.findall(r'\d+', str(r_str))
+        return int(numbers[0]) if numbers else 0
+        
+    rounds = sorted(list(set(df_remaining['라운드'])), key=parse_round)
     
     for r in rounds:
         with st.expander(f"📌 {r} 잔여 경기", expanded=False):
             r_matches = df_remaining[df_remaining['라운드'] == r]
             for idx, match in r_matches.iterrows():
-                st.markdown(f"**{match['홈팀']}** vs **{match['원정팀']}**")
+                home = str(match['홈팀']).strip()
+                away = str(match['원정팀']).strip()
+                st.markdown(f"**{home}** vs **{away}**")
                 choice = st.radio(
                     label=f"match_{idx}",
                     options=["🎲 자동 (베이지안)", "🏠 홈승", "🔺 무승부", "✈️ 원정승"],
@@ -191,7 +225,7 @@ with col2:
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 10000, 3000, step=1000)
     
     rank_matrix, teams, team_idx = run_simulation(
-        df_standings, df_finished, df_remaining, match_preds, total_games=32, n_sims=sim_count
+        df_standings, df_finished, df_remaining, match_preds, n_sims=sim_count
     )
     
     target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
@@ -199,12 +233,13 @@ with col2:
     target_i = team_idx[target_team]
     target_ranks = rank_matrix[:, target_i]
     
+    # K리그2 승격 규정 통상 (1~2위 직행/자동, 3~6위 플옵)
     direct_p = (np.sum(target_ranks <= 2) / sim_count) * 100
-    po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 6)) / sim_count) * 100
+    po_p = (np.sum((target_ranks >= 3) & (target_ranks <= 5)) / sim_count) * 100
     
     m1, m2, m3 = st.columns(3)
-    m1.metric(f"{target_team} 1~2위 (직행)", f"{direct_p:.1f}%")
-    m2.metric(f"{target_team} 3~6위 (PO)", f"{po_p:.1f}%")
+    m1.metric(f"{target_team} 1~2위 (직행권)", f"{direct_p:.1f}%")
+    m2.metric(f"{target_team} 3~5위 (PO권)", f"{po_p:.1f}%")
     m3.metric("총 승격 가시권 확률", f"{direct_p + po_p:.1f}%")
     
     rank_df = pd.DataFrame({"예상 최종 순위": target_ranks})
@@ -223,7 +258,7 @@ with col2:
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(showgrid=False),
+        xaxis=dict(showgrid=False, tickmode='linear', dtick=1),
         yaxis=dict(showgrid=True, gridcolor="#E2E8F0")
     )
     fig.update_traces(textposition='outside')
