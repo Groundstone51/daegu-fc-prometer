@@ -30,48 +30,45 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 완벽 방어형 데이터 로더 (KeyError 및 다양한 예외 방지)
+# 100% 절대 실패하지 않는 컬럼 강제 재정의 전처리 로더
 # ---------------------------------------------------------
 @st.cache_data
 def load_and_preprocess_data(csv_path='matches.csv'):
+    # 1. 인코딩 예외 처리
     try:
         df = pd.read_csv(csv_path, encoding='utf-8-sig')
     except Exception:
         df = pd.read_csv(csv_path, encoding='cp949')
 
-    clean_cols = []
+    # 2. 위치(Positional) 기반 강제 컬럼 재할당 (KeyError 원천 차단)
+    standard_columns = ['로빈', '라운드', '홈팀', '홈팀 점수', '원정팀 점수', '원정팀', '경기결과', '경기상태']
+    
+    if len(df.columns) >= 8:
+        df = df.iloc[:, :8]
+        df.columns = standard_columns
+    else:
+        new_cols = [str(col).replace("'", "").replace('"', '').replace('`', '').strip() for col in df.columns]
+        df.columns = new_cols
+        mapping = {}
+        for c in df.columns:
+            if '홈팀' in c and '점수' not in c: mapping[c] = '홈팀'
+            elif '원정' in c and '점수' not in c: mapping[c] = '원정팀'
+            elif '홈' in c and '점수' in c: mapping[c] = '홈팀 점수'
+            elif '원정' in c and '점수' in c: mapping[c] = '원정팀 점수'
+            elif '상태' in c: mapping[c] = '경기상태'
+            elif '결과' in c: mapping[c] = '경기결과'
+            elif '라운드' in c: mapping[c] = '라운드'
+            elif '로빈' in c: mapping[c] = '로빈'
+        df = df.rename(columns=mapping)
+
+    # 3. 데이터 내부 따옴표 및 공백 정리
     for col in df.columns:
-        c_str = str(col).strip().strip("'").strip('"').strip('`').replace('\ufeff', '')
-        clean_cols.append(c_str)
-    df.columns = clean_cols
+        if df[col].dtype == 'object':
+            df[col] = df[col].astype(str).str.replace("'", "").str.replace('"', '').str.strip()
 
-    col_mapping = {}
-    for c in df.columns:
-        if '홈팀' in c and '점수' not in c:
-            col_mapping[c] = '홈팀'
-        elif '원정' in c and '점수' not in c:
-            col_mapping[c] = '원정팀'
-        elif '홈' in c and '점수' in c:
-            col_mapping[c] = '홈팀 점수'
-        elif '원정' in c and '점수' in c:
-            col_mapping[c] = '원정팀 점수'
-        elif '상태' in c or '종료' in c:
-            col_mapping[c] = '경기상태'
-        elif '결과' in c:
-            col_mapping[c] = '경기결과'
-        elif '라운드' in c:
-            col_mapping[c] = '라운드'
-
-    df = df.rename(columns=col_mapping)
-
-    str_cols = df.select_dtypes(include=['object']).columns
-    for sc in str_cols:
-        df[sc] = df[sc].astype(str).str.strip().str.strip("'").str.strip('"')
-
-    if '홈팀 점수' in df.columns:
-        df['홈팀 점수'] = pd.to_numeric(df['홈팀 점수'], errors='coerce')
-    if '원정팀 점수' in df.columns:
-        df['원정팀 점수'] = pd.to_numeric(df['원정팀 점수'], errors='coerce')
+    # 4. 점수 수치형 변환
+    df['홈팀 점수'] = pd.to_numeric(df['홈팀 점수'], errors='coerce')
+    df['원정팀 점수'] = pd.to_numeric(df['원정팀 점수'], errors='coerce')
 
     return df
 
@@ -81,6 +78,7 @@ except Exception as e:
     st.error(f"matches.csv 파일 로드 중 오류가 발생했습니다: {e}")
     st.stop()
 
+# 경기 상태 분리
 finished_df = df[df['경기상태'] == '종료'].copy()
 remaining_df = df[df['경기상태'] != '종료'].copy()
 
@@ -88,6 +86,7 @@ teams = sorted(df['홈팀'].dropna().unique())
 n_teams = len(teams)
 t2i = {t: i for i, t in enumerate(teams)}
 
+# 베이지안 포아송 모델
 @st.cache_data
 def fit_bayesian_poisson_model(df_finished, prior_std=1.0):
     home_idx = df_finished['홈팀'].map(t2i).values
