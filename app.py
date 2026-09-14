@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
-from bs4 import BeautifulSoup
 from scipy.optimize import minimize
 from scipy.stats import poisson
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 st.set_page_config(
-    page_title="대구 FC 승격 가능성 예측 시스템",
+    page_title="대구 FC 승격 가능성 예측 시스템 (2026 최신 룰)",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -38,12 +37,10 @@ def fetch_kleague2_schedule_online():
     """
     네이버 스포츠 K리그2 일정 API/크롤링을 통해 최신 경기 및 잔여 일정을 수집합니다.
     """
-    url = "https://sports.news.naver.com/kfootball/schedule/index?category=kleague2"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
-        # 네이버 스포츠 내부 일정 API 호출 (JSON 데이터 파싱)
         api_url = "https://sports.news.naver.com/schedule/scoreBoard.nhn?category=kleague2"
         response = requests.get(api_url, headers=headers, timeout=5)
         if response.status_code == 200:
@@ -55,7 +52,7 @@ def fetch_kleague2_schedule_online():
                     away = game.get('awayTeamName', '').strip()
                     h_score = game.get('homeTeamScore', None)
                     a_score = game.get('awayTeamScore', None)
-                    status_str = game.get('gameState', '') # RESULT, BEFORE, CANCEL 등
+                    status_str = game.get('gameState', '')
                     
                     status = '종료' if status_str in ['RESULT', 'END'] or (h_score is not None and str(h_score).isdigit()) else '예정'
                     result_str = ''
@@ -131,9 +128,30 @@ def load_and_preprocess_data(csv_path='matches.csv', use_online=False):
 
     return df
 
-# 사이드바 크롤링 동기화 버튼
-st.sidebar.title("⚙️ 데이터 설정")
+# 사이드바 설정
+st.sidebar.title("⚙️ 시스템 설정")
 use_online_sync = st.sidebar.button("🌐 인터넷 최신 잔여 일정 동기화")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🏆 승격 규정 선택")
+promo_rule = st.sidebar.selectbox(
+    "적용할 승격 룰 선택",
+    ["2026 개정 룰 (1,2위 직행 + 3~6위 PO)", "기존 룰 (1위 직행 + 2~5위 PO)", "커스텀 지정"]
+)
+
+if promo_rule == "2026 개정 룰 (1,2위 직행 + 3~6위 PO)":
+    direct_ranks = [1, 2]
+    po_ranks = [3, 4, 5, 6]
+elif promo_rule == "기존 룰 (1위 직행 + 2~5위 PO)":
+    direct_ranks = [1]
+    po_ranks = [2, 3, 4, 5]
+else:
+    direct_max = st.sidebar.number_input("직행 승격 위수 (1위 ~ N위)", min_value=1, max_value=3, value=2)
+    po_max = st.sidebar.number_input("승격 PO 진출 최하위 (M위)", min_value=direct_max+1, max_value=8, value=6)
+    direct_ranks = list(range(1, direct_max + 1))
+    po_ranks = list(range(direct_max + 1, po_max + 1))
+
+total_promo_ranks = direct_ranks + po_ranks
 
 try:
     df = load_and_preprocess_data(use_online=use_online_sync)
@@ -340,7 +358,7 @@ elif section == "⚽ 다음 경기 예측":
 
 elif section == "🏆 대구 FC 승격 가능성 예측":
     st.markdown("<div class='main-header'>🏆 대구 FC 승격 가능성 및 잔여 경기 시뮬레이션</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-header'>베이지안 몬테카를로 기법으로 잔여 전 경기를 시뮬레이션하여 최종 순위를 산출합니다.</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-header'>선택된 승격 규정: <b>{promo_rule}</b></div>", unsafe_allow_html=True)
 
     n_sims = st.sidebar.slider("시뮬레이션 횟수", 1000, 10000, 3000, 1000)
 
@@ -396,11 +414,19 @@ elif section == "🏆 대구 FC 승격 가능성 예측":
             daegu_ranks = ranks[:, daegu_idx]
             daegu_pts = pts_matrix[:, daegu_idx]
 
+            direct_str = f"{','.join(map(str, direct_ranks))}위"
+            po_str = f"{min(po_ranks)}~{max(po_ranks)}위"
+            total_str = f"1~{max(total_promo_ranks)}위"
+
+            p_direct = np.mean(np.isin(daegu_ranks, direct_ranks)) * 100
+            p_po = np.mean(np.isin(daegu_ranks, po_ranks)) * 100
+            p_total = np.mean(np.isin(daegu_ranks, total_promo_ranks)) * 100
+
             st.markdown("### 🏆 대구 FC 승격 확률 요약")
             mc1, mc2, mc3 = st.columns(3)
-            with mc1: st.metric("🥇 1위 직행 승격 확률", f"{np.mean(daegu_ranks == 1)*100:.1f}%")
-            with mc2: st.metric("🥈 2~5위 (승격 PO)", f"{np.mean((daegu_ranks >= 2) & (daegu_ranks <= 5))*100:.1f}%")
-            with mc3: st.metric("🔥 Total 승격권 (1~5위)", f"{np.mean(daegu_ranks <= 5)*100:.1f}%")
+            with mc1: st.metric(f"🥇 Direct 승격 ({direct_str})", f"{p_direct:.1f}%")
+            with mc2: st.metric(f"🥈 승격 PO권 ({po_str})", f"{p_po:.1f}%")
+            with mc3: st.metric(f"🔥 Total 승격 가능권 ({total_str})", f"{p_total:.1f}%")
 
             st.markdown("---")
             cg1, cg2 = st.columns(2)
@@ -436,12 +462,12 @@ elif section == "🏆 대구 FC 승격 가능성 예측":
                     '팀': t,
                     '현재 승점': base_pts[t],
                     '예상 평균 승점': round(np.mean(t_pts), 1),
-                    '1위 확률 (%)': round(np.mean(t_ranks == 1) * 100, 1),
-                    '2~5위 확률 (%)': round(np.mean((t_ranks >= 2) & (t_ranks <= 5)) * 100, 1),
-                    '승격권(1~5위) 총확률 (%)': round(np.mean(t_ranks <= 5) * 100, 1)
+                    '직행 승격 확률 (%)': round(np.mean(np.isin(t_ranks, direct_ranks)) * 100, 1),
+                    '승격 PO 확률 (%)': round(np.mean(np.isin(t_ranks, po_ranks)) * 100, 1),
+                    '총 승격권 확률 (%)': round(np.mean(np.isin(t_ranks, total_promo_ranks)) * 100, 1)
                 })
             summary_df = pd.DataFrame(sim_summary).sort_values(by='예상 평균 승점', ascending=False).reset_index(drop=True)
             summary_df.index += 1
-            st.dataframe(summary_df.style.highlight_max(axis=0, subset=['승격권(1~5위) 총확률 (%)'], color='#d4edda'), use_container_width=True)
+            st.dataframe(summary_df.style.highlight_max(axis=0, subset=['총 승격권 확률 (%)'], color='#d4edda'), use_container_width=True)
     else:
         st.info("👆 위버튼을 눌러 시뮬레이션을 실행해주세요.")
