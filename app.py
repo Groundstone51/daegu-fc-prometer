@@ -85,7 +85,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 4. 실시간 순위표 데이터 (K리그2 데이터 세트)
+# 4. 실시간 순위표 데이터
 @st.cache_data(ttl=300)
 def fetch_official_standings():
     data = [
@@ -203,7 +203,7 @@ st.title("⚽ K리그2 순수 베이지안 승격 시뮬레이터")
 st.caption("🔮 감마-포아송 베이지안 추론 기반 몬테카를로 시뮬레이션")
 st.divider()
 
-# 6. 베이지안 시뮬레이션 엔진 (32경기 풀시즌 완주 기준)
+# 6. 베이지안 시뮬레이션 엔진
 def run_bayesian_simulation(df_base, future_schedule, future_preds, total_games=32, n_sims=5000):
     df = df_base.copy()
     teams = df['팀'].values
@@ -227,7 +227,7 @@ def run_bayesian_simulation(df_base, future_schedule, future_preds, total_games=
     gf_sim = np.tile(df['득점'].values.astype(np.float64), (n_sims, 1))
     ga_sim = np.tile(df['실점'].values.astype(np.float64), (n_sims, 1))
 
-    # 잔여 일정 중 사용자 선택 결과 반영
+    # 선택된 경기 결과 반영
     for m_idx, match in enumerate(future_schedule):
         home_team = match["홈팀"]
         away_team = match["원정팀"]
@@ -263,7 +263,7 @@ def run_bayesian_simulation(df_base, future_schedule, future_preds, total_games=
         games_played[h_i] += 1
         games_played[a_i] += 1
 
-    # 미지정 남아있는 대진 32경기 완주 시뮬레이션
+    # 미지정 잔여 대진 32경기 완주 시뮬레이션
     for i in range(n_teams):
         rem_n = int(total_games - games_played[i])
         if rem_n > 0:
@@ -293,47 +293,74 @@ def run_bayesian_simulation(df_base, future_schedule, future_preds, total_games=
 
     return rank_matrix, teams, team_idx, base_pts
 
-# 7. UI 구성
+# 7. UI 구성 및 필터링 기능
 col1, col2 = st.columns([1.3, 1.7])
 
 with col1:
-    st.subheader("🗓️ 잔여 경기 승패 예측 (27R~34R)")
-    st.caption("27라운드부터 34라운드까지 라운드별 승패를 조절하면 확률에 반영됩니다.")
+    st.subheader("🗓️ 잔여 경기 예측 필터")
     
+    # 경기 표시 필터 옵션
+    top_6_teams = df_standings.head(6)["팀"].tolist()
+    filter_option = st.selectbox(
+        "🔍 경기 목록 보기 필터",
+        ["전체 경기 보기", "🔥 상위 6개 팀 관련 경기만 보기", "🎯 특정 팀 핵심 경기만 보기"]
+    )
+    
+    selected_filter_team = None
+    if filter_option == "🎯 특정 팀 핵심 경기만 보기":
+        selected_filter_team = st.selectbox("팀 선택", options=df_standings["팀"].tolist(), index=0)
+
+    # 필터 조건에 맞춰 잔여 경기 리스트 필터링
+    filtered_matches = []
+    for m in remaining_matches:
+        h, a = m["홈팀"], m["원정팀"]
+        if filter_option == "전체 경기 보기":
+            filtered_matches.append(m)
+        elif filter_option == "🔥 상위 6개 팀 관련 경기만 보기":
+            if h in top_6_teams or a in top_6_teams:
+                filtered_matches.append(m)
+        elif filter_option == "🎯 특정 팀 핵심 경기만 보기":
+            # 선택 팀 경기 중 상위 6개 팀과의 맞대결
+            if (h == selected_filter_team and a in top_6_teams) or (a == selected_filter_team and h in top_6_teams):
+                filtered_matches.append(m)
+
     future_preds = {}
-    fut_rounds = sorted(list(set([m["R"] for m in remaining_matches])))
-    for r in fut_rounds:
-        with st.expander(f"📌 Round {r} 잔여 경기 목록", expanded=(r==27)):
-            r_matches = [m for m in remaining_matches if m["R"] == r]
-            for idx, match in enumerate(r_matches):
-                m_global_idx = remaining_matches.index(match)
-                h_team, a_team = match['홈팀'], match['원정팀']
-                m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
-                
-                st.caption(f"📅 일시: {m_date} | 📍 장소: {m_venue}")
-                
-                match_header_html = f"""
-                <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
-                    {get_logo_html(h_team, size=22)}{h_team}
-                    <span style="color:#94A3B8; margin: 0 8px;">VS</span> 
-                    {get_logo_html(a_team, size=22)}{a_team}
-                </div>
-                """
-                st.markdown(match_header_html, unsafe_allow_html=True)
-                
-                opt_home = f"🏠 {h_team} 승"
-                opt_draw = "🔺 무승부"
-                opt_away = f"✈️ {a_team} 승"
-                
-                choice = st.radio(
-                    label=f"r_fut_{r}_{idx}",
-                    options=["🎲 베이지안 추론", opt_home, opt_draw, opt_away],
-                    horizontal=True,
-                    key=f"radio_fut_r{r}_idx{idx}_g{m_global_idx}_{h_team}_vs_{a_team}",
-                    label_visibility="collapsed"
-                )
-                future_preds[m_global_idx] = choice
-                st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+    if not filtered_matches:
+        st.info("조건에 일치하는 잔여 경기가 없습니다.")
+    else:
+        fut_rounds = sorted(list(set([m["R"] for m in filtered_matches])))
+        for r in fut_rounds:
+            with st.expander(f"📌 Round {r} 잔여 경기", expanded=(r==27)):
+                r_matches = [m for m in filtered_matches if m["R"] == r]
+                for idx, match in enumerate(r_matches):
+                    m_global_idx = remaining_matches.index(match)
+                    h_team, a_team = match['홈팀'], match['원정팀']
+                    m_date, m_venue = match.get('날짜', ''), match.get('장소', '')
+                    
+                    st.caption(f"📅 일시: {m_date} | 📍 장소: {m_venue}")
+                    
+                    match_header_html = f"""
+                    <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 6px;">
+                        {get_logo_html(h_team, size=22)}{h_team}
+                        <span style="color:#94A3B8; margin: 0 8px;">VS</span> 
+                        {get_logo_html(a_team, size=22)}{a_team}
+                    </div>
+                    """
+                    st.markdown(match_header_html, unsafe_allow_html=True)
+                    
+                    opt_home = f"🏠 {h_team} 승"
+                    opt_draw = "🔺 무승부"
+                    opt_away = f"✈️ {a_team} 승"
+                    
+                    choice = st.radio(
+                        label=f"r_fut_{r}_{idx}",
+                        options=["🎲 베이지안 추론", opt_home, opt_draw, opt_away],
+                        horizontal=True,
+                        key=f"radio_fut_r{r}_idx{idx}_g{m_global_idx}_{h_team}_vs_{a_team}",
+                        label_visibility="collapsed"
+                    )
+                    future_preds[m_global_idx] = choice
+                    st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
 with col2:
     st.subheader("📊 베이지안 승격 확률 및 순위 예측")
