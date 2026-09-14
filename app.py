@@ -2,12 +2,10 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import requests
-from bs4 import BeautifulSoup
 
 # 1. 페이지 설정
 st.set_page_config(
-    page_title="2026 K리그2 승격 시뮬레이터 (경기별 직접 선택)",
+    page_title="2026 K리그2 승격 시뮬레이터 (정밀 연동형)",
     page_icon="⚽",
     layout="wide"
 )
@@ -26,107 +24,94 @@ st.markdown("""
     }
     [data-testid="stMetricLabel"] { color: #64748B; font-weight: 600; }
     [data-testid="stMetricValue"] { color: #0085FF; font-weight: 800; }
-    .match-card {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        padding: 10px 14px;
-        border-radius: 8px;
-        margin-bottom: 8px;
-    }
     #MainMenu, footer, header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 실시간 순위 데이터 로드
+# 3. matches.csv 데이터 로드
 @st.cache_data(ttl=3600)
-def fetch_realtime_standings():
-    url = "https://sports.news.naver.com/kfootball/record/index?category=kleague2"
-    headers = {"User-Agent": "Mozilla/5.0"}
+def load_match_data():
     try:
-        response = requests.get(url, headers=headers, timeout=3)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        rows = soup.select("#regularGroup_table tr")
-        teams_data = []
-        for row in rows:
-            name = row.select_one(".name").text.strip()
-            pts = int(row.select_one(".pts").text.strip())
-            games = int(row.select_one(".num").text.strip())
-            gf = int(row.select_one(".gf").text.strip())
-            ga = int(row.select_one(".ga").text.strip())
-            teams_data.append({"팀": name, "승점": pts, "경기수": games, "득점": gf, "실점": ga})
-        if teams_data:
-            return pd.DataFrame(teams_data), "🔴 실시간 갱신됨 (네이버 연동)"
-    except Exception:
-        pass
+        df = pd.read_csv('matches.csv')
+        return df
+    except Exception as e:
+        st.error(f"matches.csv 파일을 불러오는 중 오류가 발생했습니다: {e}")
+        return pd.DataFrame()
+
+df_matches = load_match_data()
+
+if df_matches.empty:
+    st.stop()
+
+# 경기 상태에 따른 분리 (종료 vs 예정)
+df_finished = df_matches[df_matches['경기상태'] == '종료']
+df_remaining = df_matches[df_matches['경기상태'] == '예정'].reset_index(drop=True)
+
+# 4. 완료된 경기 기반 실시간 순위 산출 함수
+def calculate_standings(finished_df, all_matches_df):
+    teams = sorted(list(set(all_matches_df['홈팀']).union(set(all_matches_df['원정팀']))))
+    standings = {t: {'팀': t, '승점': 0, '경기수': 0, '승': 0, '무': 0, '패': 0, '득점': 0, '실점': 0} for t in teams}
+    
+    for _, row in finished_df.iterrows():
+        h = row['홈팀']
+        a = row['원정팀']
+        hs = int(row['홈팀 점수'])
+        as_ = int(row['원정팀 점수'])
         
-    default_teams = [
-        {"팀": "수원 삼성 블루윙즈", "승점": 53, "경기수": 25, "득점": 43, "실점": 24},
-        {"팀": "대구 FC", "승점": 46, "경기수": 25, "득점": 42, "실점": 28},
-        {"팀": "서울 이랜드 FC", "승점": 45, "경기수": 25, "득점": 38, "실점": 24},
-        {"팀": "수원 FC", "승점": 44, "경기수": 24, "득점": 40, "실점": 22},
-        {"팀": "화성 FC", "승점": 43, "경기수": 25, "득점": 35, "실점": 21},
-        {"팀": "부산 아이파크", "승점": 38, "경기수": 24, "득점": 31, "실점": 25},
-        {"팀": "충남 아산 FC", "승점": 31, "경기수": 24, "득점": 28, "실점": 27},
-        {"팀": "성남 FC", "승점": 31, "경기수": 24, "득점": 27, "실점": 28},
-        {"팀": "김포 FC", "승점": 31, "경기수": 24, "득점": 25, "실점": 27},
-        {"팀": "경남 FC", "승점": 30, "경기수": 24, "득점": 27, "실점": 27},
-        {"팀": "용인 FC", "승점": 26, "경기수": 24, "득점": 25, "실점": 29},
-        {"팀": "파주 프런티어 FC", "승점": 26, "경기수": 24, "득점": 22, "실점": 28},
-        {"팀": "충북 청주 FC", "승점": 26, "경기수": 25, "득점": 21, "실점": 32},
-        {"팀": "천안 시티 FC", "승점": 22, "경기수": 24, "득점": 21, "실점": 26},
-        {"팀": "안산 그리너스 FC", "승점": 22, "경기수": 25, "득점": 19, "실점": 40},
-        {"팀": "전남 드래곤즈", "승점": 20, "경기수": 24, "득점": 22, "실점": 34},
-        {"팀": "김해 FC 2008", "승점": 13, "경기수": 24, "득점": 14, "실점": 43}
-    ]
-    return pd.DataFrame(default_teams), "🟡 기본 일정 로드됨"
+        standings[h]['경기수'] += 1
+        standings[a]['경기수'] += 1
+        standings[h]['득점'] += hs
+        standings[h]['실점'] += as_
+        standings[a]['득점'] += as_
+        standings[a]['실점'] += hs
+        
+        if hs > as_:
+            standings[h]['승'] += 1
+            standings[h]['승점'] += 3
+            standings[a]['패'] += 1
+        elif hs < as_:
+            standings[a]['승'] += 1
+            standings[a]['승점'] += 3
+            standings[h]['패'] += 1
+        else:
+            standings[h]['무'] += 1
+            standings[h]['승점'] += 1
+            standings[a]['무'] += 1
+            standings[a]['승점'] += 1
+            
+    df_calc = pd.DataFrame(list(standings.values()))
+    df_calc['득실차'] = df_calc['득점'] - df_calc['실점']
+    df_calc = df_calc.sort_values(by=['승점', '득실차', '득점'], ascending=[False, False, False]).reset_index(drop=True)
+    df_calc.index = df_calc.index + 1
+    df_calc.insert(0, '순위', df_calc.index)
+    return df_calc
 
-# 4. K리그2 잔여 경기 일정 크롤링/로드
-@st.cache_data(ttl=3600)
-def fetch_remaining_matches():
-    # 실제 잔여 일정 크롤링 실패 시 적용되는 라운드별 경기일정 데이터
-    default_schedule = [
-        {"R": 27, "홈팀": "수원 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 27, "홈팀": "서울 이랜드 FC", "원정팀": "대구 FC"},
-        {"R": 27, "홈팀": "화성 FC", "원정팀": "부산 아이파크"},
-        {"R": 27, "홈팀": "성남 FC", "원정팀": "충남 아산 FC"},
-        {"R": 28, "홈팀": "대구 FC", "원정팀": "수원 삼성 블루윙즈"},
-        {"R": 28, "홈팀": "부산 아이파크", "원정팀": "수원 FC"},
-        {"R": 28, "홈팀": "서울 이랜드 FC", "원정팀": "화성 FC"},
-        {"R": 29, "홈팀": "수원 FC", "원정팀": "서울 이랜드 FC"},
-        {"R": 29, "홈팀": "대구 FC", "원정팀": "화성 FC"},
-        {"R": 29, "홈팀": "수원 삼성 블루윙즈", "원정팀": "부산 아이파크"},
-        {"R": 30, "홈팀": "전남 드래곤즈", "원정팀": "대구 FC"},
-        {"R": 30, "홈팀": "화성 FC", "원정팀": "수원 FC"},
-        {"R": 30, "홈팀": "수원 삼성 블루윙즈", "원정팀": "서울 이랜드 FC"},
-    ]
-    return default_schedule
+df_standings = calculate_standings(df_finished, df_matches)
 
-df_standings, status_msg = fetch_realtime_standings()
-remaining_matches = fetch_remaining_matches()
-
-st.title("⚽ K리그2 직관적 잔여경기 승격 시뮬레이터")
-st.caption(f"경기별 [홈승 / 무승부 / 원정승] 즉시 선택 가능 엔진 | {status_msg}")
+st.title("⚽ K리그2 정밀 승격 시뮬레이터")
+st.caption(f"총 {len(df_matches)}경기 중 **{len(df_finished)}경기 완료** (실제 결과 반영) | 잔여 **{len(df_remaining)}경기** 직접 예측 및 시뮬레이션")
 st.divider()
 
-# 5. 베이지안 포아송 잔여 경기 연산 엔진
-def run_match_based_simulation(df, schedule, match_predictions, total_games=32, n_sims=3000):
-    teams = df['팀'].values
+# 5. 베이지안 포아송 시뮬레이션 엔진
+def run_simulation(standings_df, finished_df, remaining_df, match_predictions, total_games=32, n_sims=3000):
+    teams = standings_df['팀'].values
     n_teams = len(teams)
     team_idx = {t: i for i, t in enumerate(teams)}
     
-    avg_gf = (df['득점'] / df['경기수']).values
-    avg_ga = (df['실점'] / df['경기수']).values
-    league_avg_gf = avg_gf.mean()
+    # 득실점 기반 전력 지수 산출
+    avg_gf = np.where(standings_df['경기수'] > 0, standings_df['득점'] / standings_df['경기수'], 1.0).values
+    avg_ga = np.where(standings_df['경기수'] > 0, standings_df['실점'] / standings_df['경기수'], 1.0).values
+    league_avg_gf = max(avg_gf.mean(), 0.1)
     
     att_strength = avg_gf / league_avg_gf
     def_strength = avg_ga / league_avg_gf
     
-    base_pts = df['승점'].values.astype(np.float64)
-    games_played = df['경기수'].values.copy()
+    base_pts = standings_df['승점'].values.astype(np.float64)
+    games_played = standings_df['경기수'].values.copy()
     pts_sim = np.tile(base_pts, (n_sims, 1))
     
-    # 직접 결과가 입력된 경기 처리
-    for m_idx, match in enumerate(schedule):
+    # 사용자 잔여 경기 예측 반영
+    for m_idx, match in remaining_df.iterrows():
         home_team = match["홈팀"]
         away_team = match["원정팀"]
         
@@ -155,7 +140,7 @@ def run_match_based_simulation(df, schedule, match_predictions, total_games=32, 
     for i in range(n_teams):
         rem = total_games - games_played[i]
         if rem > 0:
-            p_win = np.clip(0.35 * (att_strength[i] / def_strength[i]), 0.15, 0.65)
+            p_win = np.clip(0.35 * (att_strength[i] / max(def_strength[i], 0.1)), 0.15, 0.65)
             p_draw = 0.28
             p_loss = 1.0 - p_win - p_draw
             
@@ -171,49 +156,45 @@ def run_match_based_simulation(df, schedule, match_predictions, total_games=32, 
 
     return rank_matrix, teams, team_idx
 
-# 6. UI 영역 구성
+# 6. UI 구성
 col1, col2 = st.columns([1.2, 1.8])
 
 with col1:
-    st.subheader("📋 K리그2 현재 순위")
-    st.dataframe(df_standings[["팀", "승점", "경기수", "득점", "실점"]], use_container_width=True, hide_index=True, height=200)
+    st.subheader("📋 실시간 공식 순위표 (완료 경기 반영)")
+    st.dataframe(df_standings[["순위", "팀", "승점", "경기수", "승", "무", "패", "득실차"]], use_container_width=True, hide_index=True, height=280)
     
-    st.subheader("🗓️ 잔여 경기 일정 및 결과 직접 선택")
-    st.caption("각 경기의 승/무/패를 직접 고르시면 우측 승격 확률에 즉시 반영됩니다.")
+    st.subheader("🗓️ 잔여 경기 승패 직접 예측")
+    st.caption("잔여 경기의 승/무/패를 직접 선택해 시뮬레이션 결과를 변화시켜 보세요.")
     
     match_preds = {}
     
-    # 라운드별로 묶어서 경기 일정 표시
-    rounds = sorted(list(set([m["R"] for m in remaining_matches])))
+    # 라운드별 정리
+    rounds = sorted(list(set(df_remaining['라운드'])), key=lambda x: int(str(x).replace('라운드', '').replace('R', '').strip()))
     
     for r in rounds:
-        with st.expander(f"📌 Round {r} 경기 일정", expanded=True):
-            r_matches = [m for m in remaining_matches if m["R"] == r]
-            for idx, match in enumerate(r_matches):
-                m_global_idx = remaining_matches.index(match)
-                
-                # 직관적인 카드 형태 UI
+        with st.expander(f"📌 {r} 잔여 경기", expanded=False):
+            r_matches = df_remaining[df_remaining['라운드'] == r]
+            for idx, match in r_matches.iterrows():
                 st.markdown(f"**{match['홈팀']}** vs **{match['원정팀']}**")
                 choice = st.radio(
-                    label=f"r_{r}_{idx}",
+                    label=f"match_{idx}",
                     options=["🎲 자동 (베이지안)", "🏠 홈승", "🔺 무승부", "✈️ 원정승"],
                     horizontal=True,
-                    key=f"radio_match_{m_global_idx}",
+                    key=f"radio_match_{idx}",
                     label_visibility="collapsed"
                 )
-                match_preds[m_global_idx] = choice
+                match_preds[idx] = choice
 
 with col2:
     st.subheader("📊 승격 확률 및 최종 순위 예측")
     
     sim_count = st.slider("시뮬레이션 횟수 설정", 1000, 10000, 3000, step=1000)
     
-    rank_matrix, teams, team_idx = run_match_based_simulation(
-        df_standings, remaining_matches, match_preds, total_games=32, n_sims=sim_count
+    rank_matrix, teams, team_idx = run_simulation(
+        df_standings, df_finished, df_remaining, match_preds, total_games=32, n_sims=sim_count
     )
     
-    # 확인할 분석 대상 팀 선택
-    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=1)
+    target_team = st.selectbox("확률 조회 팀 선택", options=df_standings["팀"].tolist(), index=0)
     
     target_i = team_idx[target_team]
     target_ranks = rank_matrix[:, target_i]
