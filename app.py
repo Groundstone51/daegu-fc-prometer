@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling (unsafe_allow_html=True 로 수정 완료)
+# Custom Styling
 st.markdown("""
 <style>
     .main-header {
@@ -38,12 +38,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Data Loading with Caching & Column Cleaning
+# Data Loading with Caching & Robust Column Cleaning (BOM, quotes, spaces)
 @st.cache_data
 def load_data(csv_path='matches.csv'):
-    df = pd.read_csv(csv_path)
-    # 컬럼명에 불필요한 따옴표(') 및 양끝 공백 제거
-    df.columns = df.columns.str.replace("'", "").str.replace('"', '').str.strip()
+    # utf-8-sig 처리로 파일 전반의 BOM 특수문자 전면 제거
+    try:
+        df = pd.read_csv(csv_path, encoding='utf-8-sig')
+    except:
+        df = pd.read_csv(csv_path)
+        
+    # 모든 컬럼명의 특수문자, 따옴표, 공백 완전 정제
+    cleaned_cols = []
+    for c in df.columns:
+        c_clean = str(c).replace("'", "").replace('"', '').replace('\ufeff', '').strip()
+        cleaned_cols.append(c_clean)
+    df.columns = cleaned_cols
     return df
 
 try:
