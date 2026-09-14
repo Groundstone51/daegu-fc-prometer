@@ -377,15 +377,18 @@ with col1:
                         opt_draw = "🔺 무승부"
                         opt_away = f"✈️ {a_team} 승"
                         
-                        choice = st.radio(
-                            label=f"r_fut_{r}_{idx}",
-                            options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
-                            horizontal=True,
-                            key=f"radio_fut_{m_global_idx}",
-                            label_visibility="collapsed"
+                        
                         )
                         future_preds[m_global_idx] = choice
                         st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
+# 1. 잔여 경기 탭 (tab_future) 라디오 버튼 key 수정
+choice = st.radio(
+    label=f"r_fut_{r}_{idx}",
+    options=["🎲 자동 (가중치 승률)", opt_home, opt_draw, opt_away],
+    horizontal=True,
+    key=f"radio_fut_r{r}_i{idx}_{h_team}_vs_{a_team}",  # 고유 key 생성
+    label_visibility="collapsed"
+)
 
     past_preds = {}
     with tab_past:
