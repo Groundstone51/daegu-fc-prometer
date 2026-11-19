@@ -58,32 +58,33 @@ st.caption("현재 순위 기준 예상 대진이며, 잔여 라운드 결과에
 st.divider()
 
 t1, t2, t3, t4, t5, t6 = [df_top6.loc[i, "팀"] for i in range(6)]
-
 with st.container(border=True):
     st.markdown(
-        f"📌 **1위 직행 후보:** {get_logo_html(t1, 20)}**{t1}** &nbsp;|&nbsp; **2위 승격 PO 대기:** {get_logo_html(t2, 20)}**{t2}**",
+        f"🎉 **K리그1 직행 승격 확정권 (1·2위):** &nbsp; **1위** {get_logo_html(t1, 20)}**{t1}** &nbsp;|&nbsp; **2위** {get_logo_html(t2, 20)}**{t2}**",
         unsafe_allow_html=True
     )
 
 col_a, col_b, col_c = st.columns(3)
 
 with col_a:
-    st.subheader("1단계 · 준플레이오프(예상)")
-    st.markdown(f"**3위 vs 6위**")
+    st.subheader("1단계 · 준플레이오프 (12/2)")
+    st.markdown("**3위 vs 6위** (3위 홈)")
     st.markdown(f"{get_logo_html(t3)} **{t3}** vs **{t6}** {get_logo_html(t6)}", unsafe_allow_html=True)
     st.divider()
-    st.markdown(f"**4위 vs 5위**")
+    st.markdown("**4위 vs 5위** (4위 홈)")
     st.markdown(f"{get_logo_html(t4)} **{t4}** vs **{t5}** {get_logo_html(t5)}", unsafe_allow_html=True)
+    st.caption("※ 90분 무승부 시 연장 없이 정규리그 상위 팀 진출")
 
 with col_b:
-    st.subheader("2단계 · 플레이오프(예상)")
-    st.markdown("준PO 승자 1 vs 준PO 승자 2")
-    st.caption("단판 승부 기준 상위 시드 홈 개최 원칙 적용")
+    st.subheader("2단계 · 플레이오프 (12/5)")
+    st.markdown("**준PO 승자 1 vs 준PO 승자 2**")
+    st.caption("상위 순위 홈 단판 / 무승부 시 상위 팀 승격")
+    st.success("🏆 **PO 승자 → K리그1 직행 승격**")
 
 with col_c:
-    st.subheader("최종 · 승격 PO")
-    st.markdown(f"**2위 ({t2})** vs PO 승자")
-    st.caption("K리그1 승강 PO 또는 직행/승격 규정 확인 필요")
+    st.subheader("최종 · 승강 PO")
+    st.markdown("**K리그1 12위 vs K리그2 PO 패자**")
+    st.caption("김천 상무 12위 탈출로 승강 PO 개최 확정 (1·2차전)")
 
 st.divider()
 st.subheader("현재 PO 진출권(1~6위) 요약")
