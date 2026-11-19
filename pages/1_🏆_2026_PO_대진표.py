@@ -198,12 +198,12 @@ st.dataframe(df_top6, use_container_width=True, hide_index=True)
 # 예시 데이터: 두 팀 조합을 sorted([팀A, 팀B]) 튜플 키로 관리
 # 형식: {"팀A": 승수, "무": 무승부수, "팀B": 패수(상대 승수)}
 SEASON_2026_H2H = {
-    tuple(sorted(["서울 이랜드 FC", "화성 FC"])): {"서울 이랜드 FC": 1, "무": 0, "화성 FC": 1},
+    tuple(sorted(["서울 이랜드 FC", "화성 FC"])): {"서울 이랜드 FC": 0, "무": 1, "화성 FC": 1},
     tuple(sorted(["대구 FC", "부산 아이파크"])): {"대구 FC": 1, "무": 1, "부산 아이파크": 0},
 }
 
 ALL_TIME_H2H = {
-    tuple(sorted(["서울 이랜드 FC", "화성 FC"])): {"서울 이랜드 FC": 1, "무": 0, "화성 FC": 1},
+    tuple(sorted(["서울 이랜드 FC", "화성 FC"])): {"서울 이랜드 FC": 1, "무": 2, "화성 FC": 1},
     tuple(sorted(["대구 FC", "부산 아이파크"])): {"대구 FC": 8, "무": 5, "부산 아이파크": 6},
 }
 
