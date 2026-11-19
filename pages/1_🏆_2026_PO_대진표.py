@@ -59,7 +59,11 @@ st.divider()
 
 t1, t2, t3, t4, t5, t6 = [df_top6.loc[i, "팀"] for i in range(6)]
 
-st.info(f"**1위 직행 후보:** {get_logo_html(t1, 20)}**{t1}** &nbsp;|&nbsp; **2위 승격 PO 대기:** {get_logo_html(t2, 20)}**{t2}**", icon="📌")
+with st.container(border=True):
+    st.markdown(
+        f"📌 **1위 직행 후보:** {get_logo_html(t1, 20)}**{t1}** &nbsp;|&nbsp; **2위 승격 PO 대기:** {get_logo_html(t2, 20)}**{t2}**",
+        unsafe_allow_html=True
+    )
 
 col_a, col_b, col_c = st.columns(3)
 
